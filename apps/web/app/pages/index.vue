@@ -1,0 +1,1 @@
+<template><main class="min-h-screen bg-slate-50 p-10"><h1 class="text-4xl font-bold text-blue-800">LabTrack</h1><p class="mt-3">Préstamo y devolución de equipos universitarios</p><p class="mt-4">Base inicial del proyecto — catálogo y préstamos por implementar.</p></main></template>

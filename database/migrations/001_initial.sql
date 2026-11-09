@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS users (id BIGSERIAL PRIMARY KEY, name TEXT NOT NULL, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK (role IN ('student','manager')));
+CREATE TABLE IF NOT EXISTS equipment (id BIGSERIAL PRIMARY KEY, name TEXT NOT NULL, description TEXT, status TEXT NOT NULL DEFAULT 'available' CHECK (status IN ('available','maintenance')));
+CREATE TABLE IF NOT EXISTS loans (id BIGSERIAL PRIMARY KEY, user_id BIGINT NOT NULL REFERENCES users(id), equipment_id BIGINT NOT NULL REFERENCES equipment(id), status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','returned','rejected')), requested_at TIMESTAMPTZ NOT NULL DEFAULT now(), approved_at TIMESTAMPTZ, returned_at TIMESTAMPTZ, return_condition TEXT);
+CREATE UNIQUE INDEX IF NOT EXISTS one_active_loan_per_equipment ON loans(equipment_id) WHERE status = 'approved';
+CREATE TABLE IF NOT EXISTS loan_events (id BIGSERIAL PRIMARY KEY, loan_id BIGINT NOT NULL REFERENCES loans(id), user_id BIGINT REFERENCES users(id), event_type TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now());

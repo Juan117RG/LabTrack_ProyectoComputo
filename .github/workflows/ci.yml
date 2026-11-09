@@ -1,0 +1,28 @@
+name: CI
+on:
+  pull_request:
+    branches: [develop, master]
+  push:
+    branches: [master]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install API
+        run: npm install --prefix apps/api
+      - name: Install Web
+        run: npm install --prefix apps/web
+      - name: API typecheck
+        run: npm run typecheck --prefix apps/api
+      - name: API tests
+        run: npm test --prefix apps/api
+      - name: API build
+        run: npm run build --prefix apps/api
+      - name: Web typecheck
+        run: npm run typecheck --prefix apps/web
+      - name: Web build
+        run: npm run build --prefix apps/web
