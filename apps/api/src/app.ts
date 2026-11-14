@@ -1,6 +1,10 @@
 import express from 'express';
 import cors from 'cors';
-export const app = express();
-app.use(cors({ origin: process.env.CORS_ORIGIN?.split(',') || 'http://localhost:3000' }));
+import routes from './routes/index.js';
+import { pool } from './db.js';
+const app = express();
+const allowedOrigins = process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000'];
+app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
-app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'labtrack-api' }));
+app.use('/api', routes);
+export default app;
