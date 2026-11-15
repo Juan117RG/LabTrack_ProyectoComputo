@@ -3,8 +3,20 @@ import { ref } from 'vue'
 
 const nombre = ref('')
 const descripcion = ref('')
+
 const equipos = ref([
-  { id: 1, nombre: 'Proyector', descripcion: 'Equipo de ejemplo' },
+  {
+    id: 1,
+    nombre: 'Proyector',
+    descripcion: 'Equipo de ejemplo',
+    estado: 'Disponible',
+  },
+  {
+    id: 2,
+    nombre: 'Microscopio',
+    descripcion: 'En revisión',
+    estado: 'En mantenimiento',
+  },
 ])
 
 function guardarEquipo() {
@@ -16,6 +28,7 @@ function guardarEquipo() {
     id: equipos.value.length + 1,
     nombre: nombreLimpio,
     descripcion: descripcion.value.trim(),
+    estado: 'Disponible',
   })
 
   nombre.value = ''
@@ -57,6 +70,7 @@ function guardarEquipo() {
         class="rounded border p-3"
       >
         <strong>{{ equipo.nombre }}</strong>
+        <p class="text-sm text-slate-600">Estado: {{ equipo.estado }}</p>
         <p v-if="equipo.descripcion">{{ equipo.descripcion }}</p>
       </li>
     </ul>
