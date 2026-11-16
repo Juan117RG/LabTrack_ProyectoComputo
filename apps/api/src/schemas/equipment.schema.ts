@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 const equipmentSchema = {
   getEquipment: z.object({
-    status: z.enum(['available', 'unavailable']).optional(),
+    status: z.enum(['available', 'maintenance']).optional(),
   }),
   createEquipment: z.object({
     name: z
@@ -15,7 +15,7 @@ const equipmentSchema = {
       .trim()
       .max(200, 'Equipment description must be at most 200 characters')
       .optional(),
-    status: z.enum(['available', 'unavailable']).default('available'),
+    status: z.enum(['available', 'maintenance']).default('available'),
   }),
 };
 

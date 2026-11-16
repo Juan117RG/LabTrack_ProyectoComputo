@@ -35,9 +35,6 @@ test('GET /api/equipment returns all equipment without a filter', async () => {
       status: 'available',
     },
   ];
-  
-
-
   const queries = mockDatabase(equipment);
 
   const response = await request(app).get('/api/equipment');
@@ -54,18 +51,18 @@ test('GET /api/equipment filters by status', async () => {
       id: 2,
       name: 'Multímetro',
       description: 'Instrumento de medición',
-      status: 'unavailable',
+      status: 'maintenance',
     },
   ];
   const queries = mockDatabase(equipment);
 
   const response = await request(app)
     .get('/api/equipment')
-    .query({ status: 'unavailable' });
+    .query({ status: 'maintenance' });
   assert.equal(response.status, 200);
   assert.deepEqual(response.body.data, equipment);
   assert.match(String(queries[0]?.[0]), /WHERE status = \$1/);
-  assert.deepEqual(queries[0]?.[1], ['unavailable']);
+  assert.deepEqual(queries[0]?.[1], ['maintenance']);
 });
 
 test('GET /api/equipment rejects an unsupported status', async () => {
