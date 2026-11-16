@@ -1,8 +1,8 @@
 import pool from '../db.js';
 import type {
-    CreateLoansData,
-    Loans,
-    LoansFilter,
+    CreateLoanData,
+    Loan,
+    LoanFilter,
 } from '../types/loans.types.js';
 
 const loansRepositoryTableName = 'loans';
@@ -10,7 +10,7 @@ const loansRepositoryTableName = 'loans';
 const loansRepository = {
   getLoans: async ({
     status,
-  }: LoansFilter = {}): Promise<Loans[]> => {
+  }: LoanFilter = {}): Promise<Loan[]> => {
     const query = status
       ? `SELECT id, user_id, equipment_id, status, requested_at, approved_at, returned_at, return_condition
          FROM ${loansRepositoryTableName}
@@ -20,13 +20,23 @@ const loansRepository = {
          FROM ${loansRepositoryTableName}
          ORDER BY id`;
     const values = status ? [status] : [];
-    const { rows } = await pool.query<Loans>(query, values);
+    const { rows } = await pool.query<Loan>(query, values);
     return rows;
+  },
+  getLoanById: async (id: string): Promise<Loan | null> => {
+    const query = `
+      SELECT id, user_id, equipment_id, status, requested_at, approved_at, returned_at, return_condition
+      FROM ${loansRepositoryTableName}
+      WHERE id = $1
+    `;
+    const values = [id];
+    const { rows } = await pool.query<Loan>(query, values);
+    return rows.length > 0 ? rows[0] : null;
   },
 
   createLoan: async (
-    loansData: CreateLoansData,
-  ): Promise<Loans> => {
+    loansData: CreateLoanData,
+  ): Promise<Loan> => {
     const query = `
       INSERT INTO ${loansRepositoryTableName} (user_id, equipment_id, status, requested_at, approved_at, returned_at, return_condition)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -41,7 +51,7 @@ const loansRepository = {
       null, // returned_at
       null, // return_condition
     ];
-    const { rows } = await pool.query<Loans>(query, values);
+    const { rows } = await pool.query<Loan>(query, values);
     return rows[0];
   },
 };
