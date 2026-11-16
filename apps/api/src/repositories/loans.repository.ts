@@ -54,6 +54,22 @@ const loansRepository = {
     const { rows } = await pool.query<Loan>(query, values);
     return rows[0];
   },
+  updateLoanStatus: async (
+    id: string,
+    newStatus: 'approved' | 'rejected' | 'returned',
+  ): Promise<Loan | null> => {
+    const query = `
+      UPDATE ${loansRepositoryTableName}
+      SET status = $1,
+          approved_at = CASE WHEN $1 = 'approved' THEN NOW() ELSE approved_at END,
+          returned_at = CASE WHEN $1 = 'returned' THEN NOW() ELSE returned_at END
+      WHERE id = $2
+      RETURNING id, user_id, equipment_id, status, requested_at, approved_at, returned_at, return_condition
+    `;
+    const values = [newStatus, id];
+    const { rows } = await pool.query<Loan>(query, values);
+    return rows.length > 0 ? rows[0] : null;
+  }
 };
 
 export default loansRepository;

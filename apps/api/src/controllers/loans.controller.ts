@@ -85,6 +85,31 @@ const loansController = {
         [],
       );
     }
+  },
+  rejectLoan: async (req: Request, res: Response) => {
+    try {
+      const { id } = res.locals.validatedData as { id: string };
+      const loan = await loansService.rejectLoan(id);
+      if (!loan) {
+        return errorResponse(
+          res,
+          'Loan not found',
+          'LOAN_NOT_FOUND',
+          404,
+          [],
+        );
+      }
+      return successResponse(res, 'Loan rejected successfully', loan);
+    } catch (error: unknown) {
+      console.error('Error rejecting loan:', error);
+      return errorResponse(
+        res,
+        'Error rejecting loan',
+        'LOAN_REJECT_ERROR',
+        500,
+        [],
+      );
+    }
   }
 };
 
