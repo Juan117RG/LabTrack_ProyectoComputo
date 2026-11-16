@@ -1,24 +1,34 @@
 # LabTrack
 
-Sistema universitario de préstamo y devolución de equipos. **Este repositorio es una base inicial, no el MVP completo.**
+Sistema universitario de préstamo y devolución de equipos.
+
+## Avance publicado
+
+- [Catálogo en Netlify](https://labtrack-computo.netlify.app/)
+- [Catálogo de la API en Render](https://labtrack-api-tdo1.onrender.com/api/equipment)
+- [Estado de la API](https://labtrack-api-tdo1.onrender.com/api/health)
+
+Para probar el avance, registra un equipo desde Netlify y recarga la página. El
+registro debe seguir visible porque se guarda en PostgreSQL.
 
 ## Inicio local
 
-Requiere Docker Desktop. Ejecuta `docker compose up --build`.
-
-- Frontend: http://localhost:3000
-- API: http://localhost:3001/api/health
-- PostgreSQL: puerto 5432 (solo desarrollo)
-
-La migración inicial se ejecuta al crear el volumen de base de datos. La API todavía no consulta PostgreSQL: implementar las rutas y servicios en la segunda etapa.
+Abre Docker Desktop y ejecuta `docker compose up --build` desde la raíz del
+repositorio. Abre el [frontend local](http://localhost:3000) o consulta el
+[catálogo de la API local](http://localhost:3001/api/equipment). Compose aplica
+las migraciones cuando crea el volumen de PostgreSQL por primera vez.
 
 ## GitHub
 
-Trabajar con `master`, `develop` y ramas `feature/*`. Crear PR a develop, solicitar revisión y verificar CI.
+Crea ramas de trabajo desde `develop` y abre un PR hacia `develop`. Pide revisión
+a tu compañero y verifica el CI. Para publicar, abre un PR de `develop` hacia
+`master`.
 
 ## Despliegue
 
-`render.yaml` es una base de configuración para API. Para Netlify con Nuxt SSR se debe configurar el adaptador y publicación correspondiente; el archivo `netlify.toml` es preliminar y requiere validación antes del despliegue. Configurar variables de entorno reales sin subir secretos.
+Netlify publica el frontend y usa `NUXT_PUBLIC_API_BASE` para acceder a la API.
+Render ejecuta `docker/api.Dockerfile`. Configura `DATABASE_URL` con la conexión
+interna de PostgreSQL y `CORS_ORIGIN` con el dominio público de Netlify.
 
 ## Actualizar una base de datos existente
 

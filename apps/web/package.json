@@ -9,15 +9,15 @@
     "test": "node --test"
   },
   "dependencies": {
-    "nuxt": "^4.0.0",
-    "vue": "^3.5.0",
-    "pinia": "^3.0.0",
     "@pinia/nuxt": "^0.11.0",
+    "@tailwindcss/vite": "^4.0.0",
+    "nuxt": "^4.0.0",
+    "pinia": "^3.0.0",
     "tailwindcss": "^4.0.0",
-    "@tailwindcss/vite": "^4.0.0"
+    "vue": "^3.5.0"
   },
   "devDependencies": {
     "typescript": "^5.8.0",
-    "vue-tsc": "^2.2.0"
+    "vue-tsc": "^3.3.14"
   }
 }

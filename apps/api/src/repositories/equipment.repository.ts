@@ -40,6 +40,31 @@ const equipmentRepository = {
     const { rows } = await pool.query<Equipment>(query, values);
     return rows[0];
   },
+
+  getEquipmentById: async (id: number): Promise<Equipment | null> => {
+    const query = `
+      SELECT id, name, description, status
+      FROM ${equipmentRepositoryTableName}
+      WHERE id = $1
+    `;
+    const values = [id];
+    const { rows } = await pool.query<Equipment>(query, values);
+    return rows.length > 0 ? rows[0] : null;
+  },
+  updateEquipmentStatus: async (
+    id: number,
+    newStatus: 'available' | 'unavailable',
+  ): Promise<Equipment | null> => {
+    const query = `
+      UPDATE ${equipmentRepositoryTableName}
+      SET status = $1
+      WHERE id = $2
+      RETURNING id, name, description, status
+    `;
+    const values = [newStatus, id];
+    const { rows } = await pool.query<Equipment>(query, values);
+    return rows.length > 0 ? rows[0] : null;
+  }
 };
 
 export default equipmentRepository;
