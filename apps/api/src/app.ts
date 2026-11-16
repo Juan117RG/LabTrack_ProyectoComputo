@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import routes from './routes/index.js';
-import { pool } from './db.js';
+import pool from './db.js';
 const app = express();
 const allowedOrigins = process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000'];
 app.use(cors({ origin: allowedOrigins }));
