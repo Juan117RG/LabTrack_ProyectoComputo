@@ -51,18 +51,18 @@ test('GET /api/equipment filters by status', async () => {
       id: 2,
       name: 'Multímetro',
       description: 'Instrumento de medición',
-      status: 'maintenance',
+      status: 'unavailable',
     },
   ];
   const queries = mockDatabase(equipment);
 
   const response = await request(app)
     .get('/api/equipment')
-    .query({ status: 'maintenance' });
+    .query({ status: 'unavailable' });
   assert.equal(response.status, 200);
   assert.deepEqual(response.body.data, equipment);
   assert.match(String(queries[0]?.[0]), /WHERE status = \$1/);
-  assert.deepEqual(queries[0]?.[1], ['maintenance']);
+  assert.deepEqual(queries[0]?.[1], ['unavailable']);
 });
 
 test('GET /api/equipment rejects an unsupported status', async () => {

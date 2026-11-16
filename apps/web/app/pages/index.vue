@@ -20,7 +20,6 @@ const errorGuardado = ref('')
 
 const estados: Record<string, string> = {
   available: 'Disponible',
-  maintenance: 'En mantenimiento',
   unavailable: 'No disponible',
 }
 
