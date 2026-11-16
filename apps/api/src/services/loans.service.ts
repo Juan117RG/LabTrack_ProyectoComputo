@@ -36,9 +36,8 @@ const loansService = {
     if (loan.status !== 'pending') {
       throw new Error('Only pending loans can be approved');
     }
-    const madeLoan = loansRepository.updateLoanStatus(id, 'approved');
+    const madeLoan = await loansRepository.updateLoanStatus(id, 'approved');
     await equipmentService.setEquipmentStatus(loan.equipment_id, 'unavailable');
-
     return madeLoan;
   },
   rejectLoan: async (id: string): Promise<Loan | null> => {

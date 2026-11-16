@@ -6,7 +6,7 @@ import { errorResponse, successResponse } from '../utils/response.js';
 const loansController = {
   getLoanById: async (req: Request, res: Response) => {
     try {
-      const { id } = res.locals.validatedData as { id: string };
+      const { id } = req.params as { id: string };
       const loan = await loansService.getLoanById(id);
       if (!loan) {
         return errorResponse(
@@ -51,6 +51,26 @@ const loansController = {
       const loan = await loansService.createLoan(data);
       return successResponse(res, 'Loan created successfully', loan);
     } catch (error: unknown) {
+      if (error instanceof Error) {
+        if (error.message === 'Equipment not found') {
+          return errorResponse(
+            res,
+            'Equipment not found',
+            'EQUIPMENT_NOT_FOUND',
+            404,
+            [],
+          );
+        }
+        if (error.message === 'Equipment is not available for loan') {
+          return errorResponse(
+            res,
+            'Equipment is not available for loan',
+            'EQUIPMENT_NOT_AVAILABLE',
+            400,
+            [],
+          );
+        }
+      }
       console.error('Error creating loan:', error);
       return errorResponse(
         res,
@@ -63,7 +83,7 @@ const loansController = {
   },
   approveLoan: async (req: Request, res: Response) => {
     try {
-      const { id } = res.locals.validatedData as { id: string };
+      const { id } = req.params as { id: string };
       const loan = await loansService.approveLoan(id);
       if (!loan) {
         return errorResponse(
@@ -76,6 +96,15 @@ const loansController = {
       }
       return successResponse(res, 'Loan approved successfully', loan);
     } catch (error: unknown) {
+      if (error instanceof Error && error.message === 'Only pending loans can be approved') {
+        return errorResponse(
+          res,
+          error.message,
+          'LOAN_INVALID_STATUS',
+          400,
+          [],
+        );
+      }
       console.error('Error approving loan:', error);
       return errorResponse(
         res,
@@ -88,7 +117,7 @@ const loansController = {
   },
   rejectLoan: async (req: Request, res: Response) => {
     try {
-      const { id } = res.locals.validatedData as { id: string };
+      const { id } = req.params as { id: string };
       const loan = await loansService.rejectLoan(id);
       if (!loan) {
         return errorResponse(
@@ -101,6 +130,15 @@ const loansController = {
       }
       return successResponse(res, 'Loan rejected successfully', loan);
     } catch (error: unknown) {
+      if (error instanceof Error && error.message === 'Only pending loans can be rejected') {
+        return errorResponse(
+          res,
+          error.message,
+          'LOAN_INVALID_STATUS',
+          400,
+          [],
+        );
+      }
       console.error('Error rejecting loan:', error);
       return errorResponse(
         res,
