@@ -35,6 +35,9 @@ test('GET /api/equipment returns all equipment without a filter', async () => {
       status: 'available',
     },
   ];
+  
+
+
   const queries = mockDatabase(equipment);
 
   const response = await request(app).get('/api/equipment');

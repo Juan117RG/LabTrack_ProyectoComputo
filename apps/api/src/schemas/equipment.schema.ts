@@ -15,7 +15,7 @@ const equipmentSchema = {
       .trim()
       .max(200, 'Equipment description must be at most 200 characters')
       .optional(),
-    status: z.enum(['available', 'maintenance']).default('available'),
+    status: z.enum(['available', 'unavailable']).default('available'),
   }),
 };
 

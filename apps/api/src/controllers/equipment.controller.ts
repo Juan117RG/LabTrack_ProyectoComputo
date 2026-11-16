@@ -1,14 +1,12 @@
 import type { Request, Response } from 'express';
 import equipmentService from '../services/equipment.service.js';
-import type { CreateEquipmentData } from '../types/equipment.types.js';
+import type { CreateEquipmentData, EquipmentFilter } from '../types/equipment.types.js';
 import { errorResponse, successResponse } from '../utils/response.js';
 
 const equipmentController = {
   getEquipment: async (_req: Request, res: Response) => {
     try {
-      const { status } = res.locals.validatedData as {
-        status?: 'available' | 'maintenance';
-      };
+      const { status } = res.locals.validatedData as EquipmentFilter;
       const equipment = await equipmentService.getEquipment({ status });
       return successResponse(res, 'Equipment obtained successfully', equipment);
     } catch (error: unknown) {
