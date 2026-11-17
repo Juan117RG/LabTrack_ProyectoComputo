@@ -10,7 +10,6 @@ const getRefreshTokenCookieOptions = () => ({
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",
   sameSite: "strict" as const,
-  maxAge: 24 * 60 * 60 * 1000, //in ms
   path: "/api/auth", // only accessible to here so that it is not sent to other endpoints that only need the access token in the Authorization header
 });
 
@@ -52,12 +51,11 @@ const authController = {
       res.cookie(
         REFRESH_TOKEN_COOKIE_NAME,
         refreshToken,
-        getRefreshTokenCookieOptions(),
+        { ...getRefreshTokenCookieOptions(), maxAge: 24 * 60 * 60 * 1000 },
       );
 
       return successResponse(res, "User logged in successfully", {
         accessToken,
-        refreshToken,
       });
     } catch (error: unknown) {
       if (error instanceof Error) {
@@ -84,8 +82,7 @@ const authController = {
   refreshToken: async (req: Request, res: Response) => {
     try {
       const refreshToken =
-        req.cookies?.[REFRESH_TOKEN_COOKIE_NAME] || req.body?.refreshToken;
-      // using body as fallback but it is not required since we are using HttpOnly cookies to store the refresh token
+        req.cookies?.[REFRESH_TOKEN_COOKIE_NAME];
 
       if (!refreshToken) {
         return errorResponse(
@@ -104,12 +101,11 @@ const authController = {
       res.cookie(
         REFRESH_TOKEN_COOKIE_NAME,
         newRefreshToken,
-        getRefreshTokenCookieOptions(),
+        { ...getRefreshTokenCookieOptions(), maxAge: 24 * 60 * 60 * 1000 },
       );
 
       return successResponse(res, "Token refreshed successfully", {
         accessToken,
-        refreshToken: newRefreshToken,
       });
     } catch (error: unknown) {
       if (error instanceof Error) {
@@ -164,9 +160,9 @@ const authController = {
   logout: async (req: Request, res: Response) => {
     try {
       const refreshToken =
-        req.cookies?.[REFRESH_TOKEN_COOKIE_NAME] || req.body?.refreshToken;
+        req.cookies?.[REFRESH_TOKEN_COOKIE_NAME];
       if (refreshToken) {
-        await authService.logout(refreshToken);
+        await authService.logout(refreshToken, res.locals.user.id);
       }
 
       // Clear it from the browser

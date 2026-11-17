@@ -44,3 +44,21 @@ Get-Content -Raw database/migrations/002_equipment_availability.sql |
 En Render, ejecuta el mismo archivo SQL en PostgreSQL antes de desplegar la API
 actualizada. La migración conserva los equipos y convierte el estado anterior
 `maintenance` a `unavailable`.
+
+## Inicio de sesión
+
+Para probarlo localmente, define `JWT_SECRET` en el archivo `.env` de la raíz con
+un secreto aleatorio de al menos 64 bytes. Si la base local ya tenía datos,
+aplica la migración 003 antes de probar el formulario:
+
+```powershell
+Get-Content -Raw database/migrations/003_user_sessions.sql |
+  docker compose exec -T db psql -v ON_ERROR_STOP=1 -U labtrack -d labtrack
+```
+
+La pantalla `/login` usa rutas del mismo dominio en Nuxt. Esto permite que
+el navegador envíe la cookie de renovación HttpOnly sin compartirla con
+otro dominio. En Docker, Nuxt usa `NUXT_AUTH_API_BASE` como dirección interna
+de Express. En Netlify puedes definir esa variable con la URL HTTPS de la API.
+En Render, configura `JWT_SECRET`, `NODE_ENV=production` y aplica la migración
+003 antes de desplegar los cambios de autenticación.

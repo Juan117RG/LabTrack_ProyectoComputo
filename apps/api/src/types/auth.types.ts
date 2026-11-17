@@ -2,7 +2,6 @@ export type RegisterAuthData = {
   name: string;
   email: string;
   password: string;
-  role: "student" | "manager";
 };
 
 export type LoginAuthData = {
