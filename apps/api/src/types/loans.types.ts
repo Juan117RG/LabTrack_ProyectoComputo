@@ -1,4 +1,4 @@
-export type LoanStatus = 'pending' | 'approved' | 'returned' | 'rejected';
+export type LoanStatus = "pending" | "approved" | "returned" | "rejected";
 
 export type LoanFilter = {
   status?: LoanStatus;
@@ -19,4 +19,3 @@ export type Loan = {
   returned_at: string | null;
   return_condition: string | null;
 };
-

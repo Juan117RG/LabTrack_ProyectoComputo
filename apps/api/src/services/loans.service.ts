@@ -1,10 +1,6 @@
-import loansRepository from '../repositories/loans.repository.js';
-import type {
-  CreateLoanData,
-  Loan,
-  LoanFilter,
-} from '../types/loans.types.js';
-import equipmentService from './equipment.service.js';
+import loansRepository from "../repositories/loans.repository.js";
+import type { CreateLoanData, Loan, LoanFilter } from "../types/loans.types.js";
+import equipmentService from "./equipment.service.js";
 
 const loansService = {
   getLoans: async (filter: LoanFilter): Promise<Loan[]> => {
@@ -14,16 +10,15 @@ const loansService = {
     const loan = await loansRepository.getLoanById(id);
     return loan || null;
   },
-  createLoan: async (
-    loansData: CreateLoanData,
-  ): Promise<Loan> => {
+  createLoan: async (loansData: CreateLoanData): Promise<Loan> => {
     // Check if the equipment is available before creating a loan
-    const equipment = await equipmentService.getEquipmentById(loansData.equipment_id);
+    const equipment = await equipmentService.getEquipmentById(
+      loansData.equipment_id,
+    );
     if (!equipment) {
-      throw new Error('Equipment not found');
-    }
-    else if (equipment.status !== 'available') {
-      throw new Error('Equipment is not available for loan');
+      throw new Error("Equipment not found");
+    } else if (equipment.status !== "available") {
+      throw new Error("Equipment is not available for loan");
     }
     return loansRepository.createLoan(loansData);
   },
@@ -33,11 +28,11 @@ const loansService = {
       return null;
     }
 
-    if (loan.status !== 'pending') {
-      throw new Error('Only pending loans can be approved');
+    if (loan.status !== "pending") {
+      throw new Error("Only pending loans can be approved");
     }
-    const madeLoan = await loansRepository.updateLoanStatus(id, 'approved');
-    await equipmentService.setEquipmentStatus(loan.equipment_id, 'unavailable');
+    const madeLoan = await loansRepository.updateLoanStatus(id, "approved");
+    await equipmentService.setEquipmentStatus(loan.equipment_id, "unavailable");
     return madeLoan;
   },
   rejectLoan: async (id: string): Promise<Loan | null> => {
@@ -46,12 +41,11 @@ const loansService = {
       return null;
     }
 
-    if (loan.status !== 'pending') {
-      throw new Error('Only pending loans can be rejected');
+    if (loan.status !== "pending") {
+      throw new Error("Only pending loans can be rejected");
     }
-    return loansRepository.updateLoanStatus(id, 'rejected');
+    return loansRepository.updateLoanStatus(id, "rejected");
   },
 };
 
 export default loansService;
-
