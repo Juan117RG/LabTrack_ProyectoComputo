@@ -1,16 +1,16 @@
-import pool from '../db.js';
+import pool from "../db.js";
 import type {
-    CreateEquipmentData,
-    Equipment,
-    EquipmentFilter,
-} from '../types/equipment.types.js';
+  CreateEquipmentData,
+  Equipment,
+  EquipmentFilter,
+} from "../types/equipment.types.js";
 
-const equipmentRepositoryTableName = 'equipment';
+const equipmentRepositoryTableName = "equipment";
 
 const equipmentRepository = {
-  getEquipment: async ({
-    status,
-  }: EquipmentFilter = {}): Promise<Equipment[]> => {
+  getEquipment: async ({ status }: EquipmentFilter = {}): Promise<
+    Equipment[]
+  > => {
     const query = status
       ? `SELECT id, name, description, status
          FROM ${equipmentRepositoryTableName}
@@ -53,7 +53,7 @@ const equipmentRepository = {
   },
   updateEquipmentStatus: async (
     id: number,
-    newStatus: 'available' | 'unavailable',
+    newStatus: "available" | "unavailable",
   ): Promise<Equipment | null> => {
     const query = `
       UPDATE ${equipmentRepositoryTableName}
@@ -64,7 +64,7 @@ const equipmentRepository = {
     const values = [newStatus, id];
     const { rows } = await pool.query<Equipment>(query, values);
     return rows.length > 0 ? rows[0] : null;
-  }
+  },
 };
 
 export default equipmentRepository;

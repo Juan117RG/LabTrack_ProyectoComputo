@@ -1,4 +1,4 @@
-import type { Response } from 'express';
+import type { Response } from "express";
 
 export const successResponse = (
   res: Response,
@@ -16,7 +16,7 @@ export const successResponse = (
 export const errorResponse = (
   res: Response,
   message: string,
-  code = 'INTERNAL_ERROR',
+  code = "INTERNAL_ERROR",
   status = 500,
   details: unknown = {},
 ) => {
