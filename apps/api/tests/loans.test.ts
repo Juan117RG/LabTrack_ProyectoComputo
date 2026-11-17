@@ -3,6 +3,8 @@ import { afterEach, test } from "node:test";
 import request from "supertest";
 import app from "../src/app.ts";
 import pool from "../src/db.ts";
+import type { Loan } from "../src/types/loans.types.js";
+import type { Equipment } from "../src/types/equipment.types.js";
 
 const originalQueryDescriptor = Object.getOwnPropertyDescriptor(pool, "query");
 
@@ -15,18 +17,20 @@ afterEach(() => {
 type MockResult = unknown[] | { rows: unknown[] };
 type MockHandler = (
   sql: string,
-  params: unknown[],
+  params: any[],
 ) => MockResult | Promise<MockResult>;
 
-function mockDatabase(mock: unknown[] | MockHandler) {
-  const queries: unknown[][] = [];
+type QueryRecord = [sql: string, params: any[]];
+
+function mockDatabase(mock: unknown[] | MockHandler): QueryRecord[] {
+  const queries: QueryRecord[] = [];
 
   Object.defineProperty(pool, "query", {
     configurable: true,
     value: async (...args: unknown[]) => {
-      queries.push(args);
       const sql = String(args[0] ?? "");
-      const params = (args[1] ?? []) as unknown[];
+      const params = Array.isArray(args[1]) ? (args[1] as any[]) : [];
+      queries.push([sql, params]);
 
       if (typeof mock === "function") {
         const result = await mock(sql, params);
@@ -44,7 +48,7 @@ function mockDatabase(mock: unknown[] | MockHandler) {
 }
 
 test("GET /api/loans returns all loans without a filter", async () => {
-  const loans = [
+  const loans: Loan[] = [
     {
       id: 1,
       user_id: 1,
@@ -63,12 +67,12 @@ test("GET /api/loans returns all loans without a filter", async () => {
   assert.equal(response.status, 200);
   assert.equal(response.body.success, true);
   assert.deepEqual(response.body.data, loans);
-  assert.match(String(queries[0]?.[0]), /FROM loans/);
-  assert.doesNotMatch(String(queries[0]?.[0]), /WHERE status/);
+  assert.match(queries[0]?.[0] ?? "", /FROM loans/);
+  assert.doesNotMatch(queries[0]?.[0] ?? "", /WHERE status/);
 });
 
 test("GET /api/loans filters by status", async () => {
-  const pendingLoan = {
+  const pendingLoan: Loan = {
     id: 1,
     user_id: 1,
     equipment_id: 1,
@@ -87,7 +91,7 @@ test("GET /api/loans filters by status", async () => {
   assert.equal(response.status, 200);
   assert.equal(response.body.success, true);
   assert.deepEqual(response.body.data, [pendingLoan]);
-  assert.match(String(queries[0]?.[0]), /WHERE status = \$1/);
+  assert.match(queries[0]?.[0] ?? "", /WHERE status = \$1/);
   assert.deepEqual(queries[0]?.[1], ["pending"]);
 });
 
@@ -102,7 +106,7 @@ test("GET /api/loans rejects an unsupported status", async () => {
 });
 
 test("GET /api/loans/:id returns loan by ID when found", async () => {
-  const loan = {
+  const loan: Loan = {
     id: 1,
     user_id: 1,
     equipment_id: 1,
@@ -119,7 +123,7 @@ test("GET /api/loans/:id returns loan by ID when found", async () => {
   assert.equal(response.status, 200);
   assert.equal(response.body.success, true);
   assert.deepEqual(response.body.data, loan);
-  assert.match(String(queries[0]?.[0]), /WHERE id = \$1/);
+  assert.match(queries[0]?.[0] ?? "", /WHERE id = \$1/);
   assert.deepEqual(queries[0]?.[1], ["1"]);
 });
 
@@ -131,18 +135,18 @@ test("GET /api/loans/:id returns 404 when loan is not found", async () => {
   assert.equal(response.status, 404);
   assert.equal(response.body.success, false);
   assert.equal(response.body.error.code, "LOAN_NOT_FOUND");
-  assert.match(String(queries[0]?.[0]), /WHERE id = \$1/);
+  assert.match(queries[0]?.[0] ?? "", /WHERE id = \$1/);
   assert.deepEqual(queries[0]?.[1], ["999"]);
 });
 
 test("POST /api/loans creates a loan with the validated data when equipment is available", async () => {
-  const availableEquipment = {
+  const availableEquipment: Equipment = {
     id: 1,
     name: "Microscopio",
     description: "Equipo óptico",
     status: "available",
   };
-  const createdLoan = {
+  const createdLoan: Loan = {
     id: 1,
     user_id: 1,
     equipment_id: 1,
@@ -174,10 +178,10 @@ test("POST /api/loans creates a loan with the validated data when equipment is a
 
   assert.equal(queries.length, 2);
   // First query verifies equipment exists and is available
-  assert.match(String(queries[0]?.[0]), /FROM equipment/);
+  assert.match(queries[0]?.[0] ?? "", /FROM equipment/);
   assert.deepEqual(queries[0]?.[1], [createdLoan.equipment_id]);
   // Second query inserts the new loan
-  assert.match(String(queries[1]?.[0]), /INSERT INTO loans/);
+  assert.match(queries[1]?.[0] ?? "", /INSERT INTO loans/);
   assert.equal(queries[1]?.[1]?.[0], createdLoan.user_id);
   assert.equal(queries[1]?.[1]?.[1], createdLoan.equipment_id);
   assert.equal(queries[1]?.[1]?.[2], "pending");
@@ -203,16 +207,14 @@ test("POST /api/loans refuses to create a loan when the equipment does not exist
 
   // Verify that it checked equipment but refused to execute INSERT INTO loans
   assert.equal(queries.length, 1);
-  assert.match(String(queries[0]?.[0]), /FROM equipment/);
+  assert.match(queries[0]?.[0] ?? "", /FROM equipment/);
   assert.deepEqual(queries[0]?.[1], [999]);
-  const insertQueries = queries.filter((q) =>
-    /INSERT INTO loans/i.test(String(q?.[0])),
-  );
+  const insertQueries = queries.filter((q) => /INSERT INTO loans/i.test(q[0]));
   assert.equal(insertQueries.length, 0);
 });
 
 test("POST /api/loans refuses to create a loan when the equipment is not available", async () => {
-  const unavailableEquipment = {
+  const unavailableEquipment: Equipment = {
     id: 2,
     name: "Multímetro",
     description: "Instrumento de medición",
@@ -238,11 +240,9 @@ test("POST /api/loans refuses to create a loan when the equipment is not availab
 
   // Verify that it checked equipment but refused to execute INSERT INTO loans
   assert.equal(queries.length, 1);
-  assert.match(String(queries[0]?.[0]), /FROM equipment/);
+  assert.match(queries[0]?.[0] ?? "", /FROM equipment/);
   assert.deepEqual(queries[0]?.[1], [2]);
-  const insertQueries = queries.filter((q) =>
-    /INSERT INTO loans/i.test(String(q?.[0])),
-  );
+  const insertQueries = queries.filter((q) => /INSERT INTO loans/i.test(q[0]));
   assert.equal(insertQueries.length, 0);
 });
 
@@ -262,7 +262,7 @@ test("POST /api/loans rejects invalid body data", async () => {
 });
 
 test("PATCH /api/loans/:id/approve approves a pending loan and marks equipment as unavailable", async () => {
-  const pendingLoan = {
+  const pendingLoan: Loan = {
     id: 1,
     user_id: 1,
     equipment_id: 3,
@@ -272,12 +272,12 @@ test("PATCH /api/loans/:id/approve approves a pending loan and marks equipment a
     returned_at: null,
     return_condition: null,
   };
-  const approvedLoan = {
+  const approvedLoan: Loan = {
     ...pendingLoan,
     status: "approved",
     approved_at: "2024-06-02T12:00:00Z",
   };
-  const equipment = {
+  const equipment: Equipment = {
     id: 3,
     name: "Osciloscopio",
     description: null,
@@ -306,8 +306,8 @@ test("PATCH /api/loans/:id/approve approves a pending loan and marks equipment a
   assert.equal(response.body.success, true);
   assert.deepEqual(response.body.data, approvedLoan);
 
-  assert.ok(queries.some((q) => /UPDATE loans/i.test(String(q?.[0]))));
-  assert.ok(queries.some((q) => /UPDATE equipment/i.test(String(q?.[0]))));
+  assert.ok(queries.some((q) => /UPDATE loans/i.test(q[0])));
+  assert.ok(queries.some((q) => /UPDATE equipment/i.test(q[0])));
 });
 
 test("PATCH /api/loans/:id/approve returns 404 when loan does not exist", async () => {
@@ -321,7 +321,7 @@ test("PATCH /api/loans/:id/approve returns 404 when loan does not exist", async 
 });
 
 test("PATCH /api/loans/:id/approve rejects approving a non-pending loan", async () => {
-  const alreadyApprovedLoan = {
+  const alreadyApprovedLoan: Loan = {
     id: 1,
     user_id: 1,
     equipment_id: 3,
@@ -347,12 +347,12 @@ test("PATCH /api/loans/:id/approve rejects approving a non-pending loan", async 
   assert.equal(response.body.message, "Only pending loans can be approved");
 
   // Verify no UPDATE query was executed
-  const updateQueries = queries.filter((q) => /UPDATE/i.test(String(q?.[0])));
+  const updateQueries = queries.filter((q) => /UPDATE/i.test(q[0]));
   assert.equal(updateQueries.length, 0);
 });
 
 test("PATCH /api/loans/:id/reject rejects a pending loan", async () => {
-  const pendingLoan = {
+  const pendingLoan: Loan = {
     id: 1,
     user_id: 1,
     equipment_id: 3,
@@ -362,7 +362,7 @@ test("PATCH /api/loans/:id/reject rejects a pending loan", async () => {
     returned_at: null,
     return_condition: null,
   };
-  const rejectedLoan = {
+  const rejectedLoan: Loan = {
     ...pendingLoan,
     status: "rejected",
   };
@@ -395,7 +395,7 @@ test("PATCH /api/loans/:id/reject returns 404 when loan does not exist", async (
 });
 
 test("PATCH /api/loans/:id/reject rejects rejecting a non-pending loan", async () => {
-  const alreadyRejectedLoan = {
+  const alreadyRejectedLoan: Loan = {
     id: 1,
     user_id: 1,
     equipment_id: 3,
@@ -421,6 +421,6 @@ test("PATCH /api/loans/:id/reject rejects rejecting a non-pending loan", async (
   assert.equal(response.body.message, "Only pending loans can be rejected");
 
   // Verify no UPDATE query was executed
-  const updateQueries = queries.filter((q) => /UPDATE/i.test(String(q?.[0])));
+  const updateQueries = queries.filter((q) => /UPDATE/i.test(q[0]));
   assert.equal(updateQueries.length, 0);
 });

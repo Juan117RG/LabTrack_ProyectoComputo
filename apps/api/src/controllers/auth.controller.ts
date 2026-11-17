@@ -22,11 +22,11 @@ const authController = {
       return successResponse(res, "User registered successfully", user);
     } catch (error: unknown) {
       if (error instanceof Error) {
-        if (error.message === "Email already in use") {
+        if (error.message === "Email already exists") {
           return errorResponse(
             res,
-            "Email already in use",
-            "EMAIL_ALREADY_IN_USE",
+            "Email already exists",
+            "EMAIL_ALREADY_EXISTS",
             400,
             [],
           );
@@ -114,6 +114,14 @@ const authController = {
     } catch (error: unknown) {
       if (error instanceof Error) {
         switch (error.message) {
+          case "Invalid refresh token":
+            return errorResponse(
+              res,
+              "Invalid refresh token",
+              "INVALID_REFRESH_TOKEN",
+              401,
+              [],
+            );
           case "User not found":
             return errorResponse(
               res,
@@ -123,6 +131,7 @@ const authController = {
               [],
             );
           case "Token has been revoked":
+          case "Token has already been revoked":
             return errorResponse(
               res,
               "Token has been revoked",

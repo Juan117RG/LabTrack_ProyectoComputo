@@ -48,51 +48,49 @@ const authService = {
   refreshToken: async (
     refreshToken: string,
   ): Promise<{ accessToken: string; newRefreshToken: string }> => {
+    let decoded;
     try {
-      const decoded = await verifyToken(refreshToken);
-
-      const user = await authRepository.findById(decoded.id);
-      if (!user) {
-        throw new Error("User not found");
-      }
-
-      if (user.token_version !== decoded.token_version) {
-        throw new Error("Token has been revoked");
-      }
-      if (user.active !== true) {
-        throw new Error("User is not active");
-      }
-      const accessToken = await generateAccessToken(user);
-      const newRefreshToken = await generateRefreshToken(user);
-
-      return { accessToken, newRefreshToken };
-    } catch (error) {
-      if (error instanceof Error && error.message === "Invalid token") {
-        throw new Error("Invalid refresh token");
-      } else {
-        throw new Error("Unexpected error during token refresh");
-      }
+      decoded = await verifyToken(refreshToken);
+    } catch {
+      throw new Error("Invalid refresh token");
     }
+
+    const user = await authRepository.findById(decoded.id);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Verify token version has not been revoked by a logout or password reset
+    if (user.token_version !== decoded.token_version) {
+      throw new Error("Invalid refresh token");
+    }
+    if (user.active !== true) {
+      throw new Error("User is not active");
+    }
+    const accessToken = await generateAccessToken(user);
+    const newRefreshToken = await generateRefreshToken(user);
+
+    return { accessToken, newRefreshToken };
   },
   logout: async (refreshToken: string): Promise<void> => {
+    let decoded;
     try {
-      const decoded = await verifyToken(refreshToken);
-
-      const userId = decoded.id;
-      const user = await authRepository.findById(userId);
-      if (!user) {
-        throw new Error("User not found");
-      }
-      if (user.token_version !== decoded.token_version) {
-        throw new Error("Token has already been revoked");
-      }
-      if (user.active !== true) {
-        throw new Error("User is not active");
-      }
-      await authRepository.incrementTokenVersion(userId);
+      decoded = await verifyToken(refreshToken);
     } catch (error) {
       throw new Error("Invalid refresh token");
     }
+    const userId = decoded.id;
+    const user = await authRepository.findById(userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+    if (user.token_version !== decoded.token_version) {
+      throw new Error("Token has already been revoked");
+    }
+    if (user.active !== true) {
+      throw new Error("User is not active");
+    }
+    await authRepository.incrementTokenVersion(userId);
   },
 };
 
