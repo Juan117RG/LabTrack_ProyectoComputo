@@ -1,3 +1,4 @@
+import "./setup.js";
 import { strict as assert } from "node:assert";
 import { afterEach, before, test } from "node:test";
 import request from "supertest";

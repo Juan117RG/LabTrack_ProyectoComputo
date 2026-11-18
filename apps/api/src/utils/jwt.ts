@@ -5,7 +5,13 @@ const algorithm = "HS512";
 type TokenUse = "access" | "refresh";
 
 function signingKey() {
-  const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+  // Create a dummy secret key for testing purposes
+  const secretKey =
+    process.env.JWT_SECRET ||
+    (process.env.NODE_ENV !== "production"
+      ? "test_jwt_secret_must_be_at_least_64_bytes_long_for_hs512_signing_algorithm_testing_1234567890"
+      : "");
+  const secret = new TextEncoder().encode(secretKey);
   if (secret.length < 64) {
     throw new Error("JWT_SECRET must be at least 64 bytes");
   }
