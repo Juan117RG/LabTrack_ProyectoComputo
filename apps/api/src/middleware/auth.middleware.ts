@@ -35,7 +35,10 @@ export const authMiddleware = (
 
       const role = user.role as keyof typeof roleHierarchy;
 
-      if (!roleHierarchy[role] || roleHierarchy[role] < roleHierarchy[requiredRole]) {
+      if (
+        !roleHierarchy[role] ||
+        roleHierarchy[role] < roleHierarchy[requiredRole]
+      ) {
         return errorResponse(
           res,
           "not_sufficient_permissions",

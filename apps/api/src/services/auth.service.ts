@@ -72,7 +72,10 @@ const authService = {
 
     return { accessToken, newRefreshToken };
   },
-  logout: async (refreshToken: string, authenticatedUserId: number): Promise<void> => {
+  logout: async (
+    refreshToken: string,
+    authenticatedUserId: number,
+  ): Promise<void> => {
     let decoded;
     try {
       decoded = await verifyToken(refreshToken, "refresh");

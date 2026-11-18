@@ -3,7 +3,8 @@ CREATE TABLE IF NOT EXISTS users (
     name TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
-    role TEXT NOT NULL CHECK (role IN ('student', 'manager'))
+    role TEXT NOT NULL CHECK (role IN ('student', 'manager', 'admin'))
+    /*added the admin role*/
 );
 
 CREATE TABLE IF NOT EXISTS equipment (
