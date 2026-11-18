@@ -1,6 +1,7 @@
 <script setup lang="ts">
 type TokenResponse = { data: { accessToken: string } };
 
+const route = useRoute();
 const email = ref("");
 const password = ref("");
 const showPassword = ref(false);
@@ -38,6 +39,7 @@ async function signIn() {
       body: { email: email.value.trim(), password: password.value },
     });
     accessToken.value = response.data.accessToken;
+    await navigateTo("/catalogo");
     password.value = "";
     showPassword.value = false;
   } catch (error) {
@@ -79,7 +81,7 @@ async function signOut() {
   <main class="min-h-dvh bg-slate-100 px-5 py-8 text-slate-950 sm:px-8">
     <div class="mx-auto flex min-h-[calc(100dvh-4rem)] max-w-5xl flex-col">
       <NuxtLink
-        to="/"
+        to="/catalogo"
         class="self-start rounded text-xl font-bold tracking-tight text-blue-800 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-700"
       >
         LabTrack
@@ -94,6 +96,7 @@ async function signOut() {
             Iniciar sesión
           </h1>
 
+          <p v-if="route.query.registro === 'completo'" role="status" class="mt-5 text-sm text-green-800">Cuenta creada. Ya puedes iniciar sesión.</p>
           <p
             v-if="checkingSession"
             class="mt-6 text-sm text-slate-600"
@@ -168,11 +171,10 @@ async function signOut() {
             {{ errorMessage }}
           </p>
 
-          <NuxtLink
-            to="/"
-            class="mt-6 inline-block rounded text-sm font-semibold text-blue-800 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-700"
+          <NuxtLink v-if="!accessToken" to="/registro" class="mt-6 block font-semibold text-blue-800">Crear cuenta</NuxtLink>
+          <NuxtLink v-if="accessToken" to="/catalogo" class="mt-6 inline-block rounded text-sm font-semibold text-blue-800 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-700"
           >
-            Volver al catálogo
+            Ver catálogo
           </NuxtLink>
         </section>
       </div>
