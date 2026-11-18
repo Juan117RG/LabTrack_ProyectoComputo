@@ -1,11 +1,11 @@
-import 'dotenv/config'
-import { Pool } from 'pg'
+import "dotenv/config";
+import { Pool } from "pg";
 
-const connectionString = process.env.DATABASE_URL
+const connectionString = process.env.DATABASE_URL;
 
 if (!connectionString) {
   // La conexión solo se utiliza cuando se ejecuta una consulta.
-  console.warn('DATABASE_URL no configurada; define apps/api/.env')
+  console.warn("DATABASE_URL no configurada; define apps/api/.env");
 }
 
 const pool = new Pool({
@@ -13,10 +13,10 @@ const pool = new Pool({
   max: 5,
   connectionTimeoutMillis: 10000,
   idleTimeoutMillis: 30000,
-})
+});
 
-pool.on('error', (error) => {
-  console.error('Unexpected error on idle PostgreSQL connection:', error)
-})
+pool.on("error", (error) => {
+  console.error("Unexpected error on idle PostgreSQL connection:", error);
+});
 
 export default pool;

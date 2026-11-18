@@ -1,4 +1,4 @@
-export type EquipmentStatus = 'available' | 'unavailable';
+export type EquipmentStatus = "available" | "unavailable";
 
 export type EquipmentFilter = {
   status?: EquipmentStatus;

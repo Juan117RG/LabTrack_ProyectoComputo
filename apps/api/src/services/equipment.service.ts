@@ -1,9 +1,9 @@
-import equipmentRepository from '../repositories/equipment.repository.js';
+import equipmentRepository from "../repositories/equipment.repository.js";
 import type {
   CreateEquipmentData,
   Equipment,
   EquipmentFilter,
-} from '../types/equipment.types.js';
+} from "../types/equipment.types.js";
 
 const equipmentService = {
   getEquipment: async (filter: EquipmentFilter): Promise<Equipment[]> => {
@@ -18,14 +18,20 @@ const equipmentService = {
   ): Promise<Equipment> => {
     return equipmentRepository.createEquipment(equipmentData);
   },
-  setEquipmentStatus: async (id: number, status: 'available' | 'unavailable'): Promise<Equipment | null> => {
+  setEquipmentStatus: async (
+    id: number,
+    status: "available" | "unavailable",
+  ): Promise<Equipment | null> => {
     const equipment = await equipmentRepository.getEquipmentById(id);
     if (!equipment) {
       return null;
     }
-    const updatedEquipment = await equipmentRepository.updateEquipmentStatus(id, status);
+    const updatedEquipment = await equipmentRepository.updateEquipmentStatus(
+      id,
+      status,
+    );
     return updatedEquipment;
-  }
+  },
 };
 
 export default equipmentService;
