@@ -12,8 +12,16 @@ function signingKey() {
   return secret;
 }
 
-function generateToken({ id, role, token_version }: JWTPayload, tokenUse: TokenUse) {
-  return new SignJWT({ id: Number(id), role, token_version, token_use: tokenUse })
+function generateToken(
+  { id, role, token_version }: JWTPayload,
+  tokenUse: TokenUse,
+) {
+  return new SignJWT({
+    id: Number(id),
+    role,
+    token_version,
+    token_use: tokenUse,
+  })
     .setProtectedHeader({ alg: algorithm })
     .setIssuedAt()
     .setExpirationTime(tokenUse === "access" ? "15m" : "1d")
@@ -36,9 +44,12 @@ export async function verifyToken(token: string, tokenUse: TokenUse) {
 
   if (
     payload.token_use !== tokenUse ||
-    typeof id !== "number" || !Number.isSafeInteger(id) || id < 1 ||
+    typeof id !== "number" ||
+    !Number.isSafeInteger(id) ||
+    id < 1 ||
     (role !== "student" && role !== "manager" && role !== "admin") ||
-    typeof token_version !== "number" || !Number.isSafeInteger(token_version) ||
+    typeof token_version !== "number" ||
+    !Number.isSafeInteger(token_version) ||
     token_version < 0
   ) {
     throw new Error("Invalid token");

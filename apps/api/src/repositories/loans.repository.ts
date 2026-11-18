@@ -17,6 +17,17 @@ const loansRepository = {
     const { rows } = await pool.query<Loan>(query, values);
     return rows;
   },
+  getLoansByUserId: async (userId: number): Promise<Loan[]> => {
+    const query = `
+      SELECT id, user_id, equipment_id, status, requested_at, approved_at, returned_at, return_condition
+      FROM ${loansRepositoryTableName}
+      WHERE user_id = $1
+      ORDER BY id
+    `;
+    const values = [userId];
+    const { rows } = await pool.query<Loan>(query, values);
+    return rows;
+  },
   getLoanById: async (id: string): Promise<Loan | null> => {
     const query = `
       SELECT id, user_id, equipment_id, status, requested_at, approved_at, returned_at, return_condition

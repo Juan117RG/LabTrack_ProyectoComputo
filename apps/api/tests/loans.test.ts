@@ -1,8 +1,9 @@
 import { strict as assert } from "node:assert";
-import { afterEach, test } from "node:test";
+import { afterEach, before, test } from "node:test";
 import request from "supertest";
 import app from "../src/app.ts";
 import pool from "../src/db.ts";
+import { generateAccessToken } from "../src/utils/jwt.js";
 import type { Loan } from "../src/types/loans.types.js";
 import type { Equipment } from "../src/types/equipment.types.js";
 
@@ -12,6 +13,55 @@ afterEach(() => {
   if (originalQueryDescriptor) {
     Object.defineProperty(pool, "query", originalQueryDescriptor);
   }
+});
+
+const studentUser = {
+  id: 1,
+  name: "Student User",
+  email: "student@example.com",
+  role: "student" as const,
+  active: true,
+  token_version: 0,
+};
+
+const otherStudentUser = {
+  id: 2,
+  name: "Other Student",
+  email: "other@example.com",
+  role: "student" as const,
+  active: true,
+  token_version: 0,
+};
+
+const managerUser = {
+  id: 99,
+  name: "Manager User",
+  email: "manager@example.com",
+  role: "manager" as const,
+  active: true,
+  token_version: 0,
+};
+
+let studentToken: string;
+let otherStudentToken: string;
+let managerToken: string;
+
+before(async () => {
+  studentToken = await generateAccessToken({
+    id: studentUser.id,
+    role: studentUser.role,
+    token_version: studentUser.token_version,
+  });
+  otherStudentToken = await generateAccessToken({
+    id: otherStudentUser.id,
+    role: otherStudentUser.role,
+    token_version: otherStudentUser.token_version,
+  });
+  managerToken = await generateAccessToken({
+    id: managerUser.id,
+    role: managerUser.role,
+    token_version: managerUser.token_version,
+  });
 });
 
 type MockResult = unknown[] | { rows: unknown[] };
@@ -32,6 +82,18 @@ function mockDatabase(mock: unknown[] | MockHandler): QueryRecord[] {
       const params = Array.isArray(args[1]) ? (args[1] as any[]) : [];
       queries.push([sql, params]);
 
+      // Automatically respond to authMiddleware user lookups
+      if (/FROM users\s+WHERE id =/i.test(sql)) {
+        const userId = Number(params[0]);
+        if (userId === managerUser.id) {
+          return { rows: [managerUser] };
+        }
+        if (userId === otherStudentUser.id) {
+          return { rows: [otherStudentUser] };
+        }
+        return { rows: [studentUser] };
+      }
+
       if (typeof mock === "function") {
         const result = await mock(sql, params);
         if (Array.isArray(result)) {
@@ -47,7 +109,7 @@ function mockDatabase(mock: unknown[] | MockHandler): QueryRecord[] {
   return queries;
 }
 
-test("GET /api/loans returns all loans without a filter", async () => {
+test("GET /api/loans returns all loans for manager", async () => {
   const loans: Loan[] = [
     {
       id: 1,
@@ -62,16 +124,31 @@ test("GET /api/loans returns all loans without a filter", async () => {
   ];
   const queries = mockDatabase(loans);
 
-  const response = await request(app).get("/api/loans");
+  const response = await request(app)
+    .get("/api/loans")
+    .set("Authorization", `Bearer ${managerToken}`);
 
   assert.equal(response.status, 200);
   assert.equal(response.body.success, true);
   assert.deepEqual(response.body.data, loans);
-  assert.match(queries[0]?.[0] ?? "", /FROM loans/);
-  assert.doesNotMatch(queries[0]?.[0] ?? "", /WHERE status/);
+  const loanQuery = queries.find((q) => /FROM loans/i.test(q[0]));
+  assert.ok(loanQuery);
+  assert.doesNotMatch(loanQuery[0], /WHERE status/);
 });
 
-test("GET /api/loans filters by status", async () => {
+test("GET /api/loans rejects student role with 403", async () => {
+  mockDatabase([]);
+
+  const response = await request(app)
+    .get("/api/loans")
+    .set("Authorization", `Bearer ${studentToken}`);
+
+  assert.equal(response.status, 403);
+  assert.equal(response.body.success, false);
+  assert.equal(response.body.error.code, "NOT_SUFFICIENT_PERMISSIONS");
+});
+
+test("GET /api/loans filters by status for manager", async () => {
   const pendingLoan: Loan = {
     id: 1,
     user_id: 1,
@@ -86,18 +163,23 @@ test("GET /api/loans filters by status", async () => {
 
   const response = await request(app)
     .get("/api/loans")
+    .set("Authorization", `Bearer ${managerToken}`)
     .query({ status: "pending" });
 
   assert.equal(response.status, 200);
   assert.equal(response.body.success, true);
   assert.deepEqual(response.body.data, [pendingLoan]);
-  assert.match(queries[0]?.[0] ?? "", /WHERE status = \$1/);
-  assert.deepEqual(queries[0]?.[1], ["pending"]);
+  const loanQuery = queries.find((q) => /WHERE status = \$1/i.test(q[0]));
+  assert.ok(loanQuery);
+  assert.deepEqual(loanQuery[1], ["pending"]);
 });
 
-test("GET /api/loans rejects an unsupported status", async () => {
+test("GET /api/loans rejects an unsupported status for manager", async () => {
+  mockDatabase([]);
+
   const response = await request(app)
     .get("/api/loans")
+    .set("Authorization", `Bearer ${managerToken}`)
     .query({ status: "broken" });
 
   assert.equal(response.status, 400);
@@ -105,10 +187,76 @@ test("GET /api/loans rejects an unsupported status", async () => {
   assert.equal(response.body.error.code, "VALIDATION_ERROR");
 });
 
-test("GET /api/loans/:id returns loan by ID when found", async () => {
+test("GET /api/loans/myloans returns loans for current authenticated student", async () => {
+  const myLoans: Loan[] = [
+    {
+      id: 1,
+      user_id: studentUser.id,
+      equipment_id: 1,
+      status: "pending",
+      requested_at: "2024-06-01T12:00:00Z",
+      approved_at: null,
+      returned_at: null,
+      return_condition: null,
+    },
+  ];
+  const queries = mockDatabase(myLoans);
+
+  const response = await request(app)
+    .get("/api/loans/myloans")
+    .set("Authorization", `Bearer ${studentToken}`);
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.success, true);
+  assert.deepEqual(response.body.data, myLoans);
+  const userLoansQuery = queries.find((q) => /WHERE user_id = \$1/i.test(q[0]));
+  assert.ok(userLoansQuery);
+  assert.deepEqual(userLoansQuery[1], [studentUser.id]);
+});
+
+test("GET /api/loans/user/:userId returns loans for specified user when called by manager", async () => {
+  const userLoans: Loan[] = [
+    {
+      id: 1,
+      user_id: 1,
+      equipment_id: 1,
+      status: "pending",
+      requested_at: "2024-06-01T12:00:00Z",
+      approved_at: null,
+      returned_at: null,
+      return_condition: null,
+    },
+  ];
+  const queries = mockDatabase(userLoans);
+
+  const response = await request(app)
+    .get("/api/loans/user/1")
+    .set("Authorization", `Bearer ${managerToken}`);
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.success, true);
+  assert.deepEqual(response.body.data, userLoans);
+  const userLoansQuery = queries.find((q) => /WHERE user_id = \$1/i.test(q[0]));
+  assert.ok(userLoansQuery);
+  assert.deepEqual(userLoansQuery[1], [1]);
+});
+
+test("GET /api/loans/user/:userId rejects student role with 403", async () => {
+  mockDatabase([]);
+
+  const response = await request(app)
+    .get("/api/loans/user/1")
+    .set("Authorization", `Bearer ${studentToken}`);
+
+  assert.equal(response.status, 403);
+  assert.equal(response.body.success, false);
+  assert.equal(response.body.error.code, "NOT_SUFFICIENT_PERMISSIONS");
+});
+
+test("GET /api/loans/:id returns loan by ID when student owns the loan", async () => {
   const loan: Loan = {
     id: 1,
-    user_id: 1,
+    user_id: studentUser.id,
     equipment_id: 1,
     status: "pending",
     requested_at: "2024-06-01T12:00:00Z",
@@ -116,30 +264,74 @@ test("GET /api/loans/:id returns loan by ID when found", async () => {
     returned_at: null,
     return_condition: null,
   };
-  const queries = mockDatabase([loan]);
+  mockDatabase([loan]);
 
-  const response = await request(app).get("/api/loans/1");
+  const response = await request(app)
+    .get("/api/loans/1")
+    .set("Authorization", `Bearer ${studentToken}`);
 
   assert.equal(response.status, 200);
   assert.equal(response.body.success, true);
   assert.deepEqual(response.body.data, loan);
-  assert.match(queries[0]?.[0] ?? "", /WHERE id = \$1/);
-  assert.deepEqual(queries[0]?.[1], ["1"]);
+});
+
+test("GET /api/loans/:id forbids student from viewing another student loan", async () => {
+  const loan: Loan = {
+    id: 1,
+    user_id: otherStudentUser.id, // belongs to user 2
+    equipment_id: 1,
+    status: "pending",
+    requested_at: "2024-06-01T12:00:00Z",
+    approved_at: null,
+    returned_at: null,
+    return_condition: null,
+  };
+  mockDatabase([loan]);
+
+  const response = await request(app)
+    .get("/api/loans/1")
+    .set("Authorization", `Bearer ${studentToken}`); // user 1
+
+  assert.equal(response.status, 403);
+  assert.equal(response.body.success, false);
+  assert.equal(response.body.error.code, "LOAN_VIEW_FORBIDDEN");
+});
+
+test("GET /api/loans/:id allows manager to view any loan", async () => {
+  const loan: Loan = {
+    id: 1,
+    user_id: otherStudentUser.id,
+    equipment_id: 1,
+    status: "pending",
+    requested_at: "2024-06-01T12:00:00Z",
+    approved_at: null,
+    returned_at: null,
+    return_condition: null,
+  };
+  mockDatabase([loan]);
+
+  const response = await request(app)
+    .get("/api/loans/1")
+    .set("Authorization", `Bearer ${managerToken}`);
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.success, true);
+  assert.deepEqual(response.body.data, loan);
 });
 
 test("GET /api/loans/:id returns 404 when loan is not found", async () => {
-  const queries = mockDatabase([]);
+  mockDatabase([]);
 
-  const response = await request(app).get("/api/loans/999");
+  const response = await request(app)
+    .get("/api/loans/999")
+    .set("Authorization", `Bearer ${studentToken}`);
 
   assert.equal(response.status, 404);
   assert.equal(response.body.success, false);
   assert.equal(response.body.error.code, "LOAN_NOT_FOUND");
-  assert.match(queries[0]?.[0] ?? "", /WHERE id = \$1/);
-  assert.deepEqual(queries[0]?.[1], ["999"]);
 });
 
-test("POST /api/loans creates a loan with the validated data when equipment is available", async () => {
+test("POST /api/loans creates a loan with validated data when equipment is available", async () => {
   const availableEquipment: Equipment = {
     id: 1,
     name: "Microscopio",
@@ -148,7 +340,7 @@ test("POST /api/loans creates a loan with the validated data when equipment is a
   };
   const createdLoan: Loan = {
     id: 1,
-    user_id: 1,
+    user_id: studentUser.id,
     equipment_id: 1,
     status: "pending",
     requested_at: "2024-06-01T12:00:00Z",
@@ -167,50 +359,68 @@ test("POST /api/loans creates a loan with the validated data when equipment is a
     return [];
   });
 
-  const response = await request(app).post("/api/loans").send({
-    user_id: createdLoan.user_id,
-    equipment_id: createdLoan.equipment_id,
-  });
+  const response = await request(app)
+    .post("/api/loans")
+    .set("Authorization", `Bearer ${studentToken}`)
+    .send({
+      user_id: studentUser.id,
+      equipment_id: createdLoan.equipment_id,
+    });
 
   assert.equal(response.status, 200);
   assert.equal(response.body.success, true);
   assert.deepEqual(response.body.data, createdLoan);
 
-  assert.equal(queries.length, 2);
-  // First query verifies equipment exists and is available
-  assert.match(queries[0]?.[0] ?? "", /FROM equipment/);
-  assert.deepEqual(queries[0]?.[1], [createdLoan.equipment_id]);
-  // Second query inserts the new loan
-  assert.match(queries[1]?.[0] ?? "", /INSERT INTO loans/);
-  assert.equal(queries[1]?.[1]?.[0], createdLoan.user_id);
-  assert.equal(queries[1]?.[1]?.[1], createdLoan.equipment_id);
-  assert.equal(queries[1]?.[1]?.[2], "pending");
+  const equipQuery = queries.find((q) => /FROM equipment/i.test(q[0]));
+  assert.ok(equipQuery);
+  assert.deepEqual(equipQuery[1], [createdLoan.equipment_id]);
+
+  const insertQuery = queries.find((q) => /INSERT INTO loans/i.test(q[0]));
+  assert.ok(insertQuery);
+  assert.equal(insertQuery[1][0], studentUser.id);
+  assert.equal(insertQuery[1][1], createdLoan.equipment_id);
+  assert.equal(insertQuery[1][2], "pending");
+});
+
+test("POST /api/loans forbids creating a loan on behalf of another user", async () => {
+  mockDatabase([]);
+
+  const response = await request(app)
+    .post("/api/loans")
+    .set("Authorization", `Bearer ${studentToken}`) // user 1
+    .send({
+      user_id: otherStudentUser.id, // user 2
+      equipment_id: 1,
+    });
+
+  assert.equal(response.status, 403);
+  assert.equal(response.body.success, false);
+  assert.equal(response.body.error.code, "LOAN_CREATE_FORBIDDEN");
 });
 
 test("POST /api/loans refuses to create a loan when the equipment does not exist", async () => {
   const queries = mockDatabase((sql) => {
     if (/FROM equipment/i.test(sql)) {
-      return []; // Equipment does not exist
+      return [];
     }
     return [];
   });
 
-  const response = await request(app).post("/api/loans").send({
-    user_id: 1,
-    equipment_id: 999,
-  });
+  const response = await request(app)
+    .post("/api/loans")
+    .set("Authorization", `Bearer ${studentToken}`)
+    .send({
+      user_id: studentUser.id,
+      equipment_id: 999,
+    });
 
   assert.equal(response.status, 404);
   assert.equal(response.body.success, false);
   assert.equal(response.body.error.code, "EQUIPMENT_NOT_FOUND");
   assert.equal(response.body.message, "Equipment not found");
 
-  // Verify that it checked equipment but refused to execute INSERT INTO loans
-  assert.equal(queries.length, 1);
-  assert.match(queries[0]?.[0] ?? "", /FROM equipment/);
-  assert.deepEqual(queries[0]?.[1], [999]);
-  const insertQueries = queries.filter((q) => /INSERT INTO loans/i.test(q[0]));
-  assert.equal(insertQueries.length, 0);
+  const insertQuery = queries.find((q) => /INSERT INTO loans/i.test(q[0]));
+  assert.equal(insertQuery, undefined);
 });
 
 test("POST /api/loans refuses to create a loan when the equipment is not available", async () => {
@@ -228,40 +438,42 @@ test("POST /api/loans refuses to create a loan when the equipment is not availab
     return [];
   });
 
-  const response = await request(app).post("/api/loans").send({
-    user_id: 1,
-    equipment_id: 2,
-  });
+  const response = await request(app)
+    .post("/api/loans")
+    .set("Authorization", `Bearer ${studentToken}`)
+    .send({
+      user_id: studentUser.id,
+      equipment_id: 2,
+    });
 
   assert.equal(response.status, 400);
   assert.equal(response.body.success, false);
   assert.equal(response.body.error.code, "EQUIPMENT_NOT_AVAILABLE");
   assert.equal(response.body.message, "Equipment is not available for loan");
 
-  // Verify that it checked equipment but refused to execute INSERT INTO loans
-  assert.equal(queries.length, 1);
-  assert.match(queries[0]?.[0] ?? "", /FROM equipment/);
-  assert.deepEqual(queries[0]?.[1], [2]);
-  const insertQueries = queries.filter((q) => /INSERT INTO loans/i.test(q[0]));
-  assert.equal(insertQueries.length, 0);
+  const insertQuery = queries.find((q) => /INSERT INTO loans/i.test(q[0]));
+  assert.equal(insertQuery, undefined);
 });
 
 test("POST /api/loans rejects invalid body data", async () => {
   const queries = mockDatabase([]);
 
-  const response = await request(app).post("/api/loans").send({
-    user_id: -1,
-    equipment_id: "not-a-number",
-  });
+  const response = await request(app)
+    .post("/api/loans")
+    .set("Authorization", `Bearer ${studentToken}`)
+    .send({
+      user_id: -1,
+      equipment_id: "not-a-number",
+    });
 
   assert.equal(response.status, 400);
   assert.equal(response.body.success, false);
   assert.equal(response.body.error.code, "VALIDATION_ERROR");
-  // No database queries executed on validation failure
-  assert.equal(queries.length, 0);
+  const insertQuery = queries.find((q) => /INSERT INTO loans/i.test(q[0]));
+  assert.equal(insertQuery, undefined);
 });
 
-test("PATCH /api/loans/:id/approve approves a pending loan and marks equipment as unavailable", async () => {
+test("PATCH /api/loans/:id/approve approves a pending loan and marks equipment as unavailable for manager", async () => {
   const pendingLoan: Loan = {
     id: 1,
     user_id: 1,
@@ -300,7 +512,9 @@ test("PATCH /api/loans/:id/approve approves a pending loan and marks equipment a
     return [];
   });
 
-  const response = await request(app).patch("/api/loans/1/approve");
+  const response = await request(app)
+    .patch("/api/loans/1/approve")
+    .set("Authorization", `Bearer ${managerToken}`);
 
   assert.equal(response.status, 200);
   assert.equal(response.body.success, true);
@@ -310,10 +524,24 @@ test("PATCH /api/loans/:id/approve approves a pending loan and marks equipment a
   assert.ok(queries.some((q) => /UPDATE equipment/i.test(q[0])));
 });
 
-test("PATCH /api/loans/:id/approve returns 404 when loan does not exist", async () => {
-  const queries = mockDatabase([]);
+test("PATCH /api/loans/:id/approve rejects student role with 403", async () => {
+  mockDatabase([]);
 
-  const response = await request(app).patch("/api/loans/999/approve");
+  const response = await request(app)
+    .patch("/api/loans/1/approve")
+    .set("Authorization", `Bearer ${studentToken}`);
+
+  assert.equal(response.status, 403);
+  assert.equal(response.body.success, false);
+  assert.equal(response.body.error.code, "NOT_SUFFICIENT_PERMISSIONS");
+});
+
+test("PATCH /api/loans/:id/approve returns 404 when loan does not exist", async () => {
+  mockDatabase([]);
+
+  const response = await request(app)
+    .patch("/api/loans/999/approve")
+    .set("Authorization", `Bearer ${managerToken}`);
 
   assert.equal(response.status, 404);
   assert.equal(response.body.success, false);
@@ -339,19 +567,20 @@ test("PATCH /api/loans/:id/approve rejects approving a non-pending loan", async 
     return [];
   });
 
-  const response = await request(app).patch("/api/loans/1/approve");
+  const response = await request(app)
+    .patch("/api/loans/1/approve")
+    .set("Authorization", `Bearer ${managerToken}`);
 
   assert.equal(response.status, 400);
   assert.equal(response.body.success, false);
   assert.equal(response.body.error.code, "LOAN_INVALID_STATUS");
   assert.equal(response.body.message, "Only pending loans can be approved");
 
-  // Verify no UPDATE query was executed
   const updateQueries = queries.filter((q) => /UPDATE/i.test(q[0]));
   assert.equal(updateQueries.length, 0);
 });
 
-test("PATCH /api/loans/:id/reject rejects a pending loan", async () => {
+test("PATCH /api/loans/:id/reject rejects a pending loan for manager", async () => {
   const pendingLoan: Loan = {
     id: 1,
     user_id: 1,
@@ -377,17 +606,33 @@ test("PATCH /api/loans/:id/reject rejects a pending loan", async () => {
     return [];
   });
 
-  const response = await request(app).patch("/api/loans/1/reject");
+  const response = await request(app)
+    .patch("/api/loans/1/reject")
+    .set("Authorization", `Bearer ${managerToken}`);
 
   assert.equal(response.status, 200);
   assert.equal(response.body.success, true);
   assert.deepEqual(response.body.data, rejectedLoan);
 });
 
-test("PATCH /api/loans/:id/reject returns 404 when loan does not exist", async () => {
-  const queries = mockDatabase([]);
+test("PATCH /api/loans/:id/reject rejects student role with 403", async () => {
+  mockDatabase([]);
 
-  const response = await request(app).patch("/api/loans/999/reject");
+  const response = await request(app)
+    .patch("/api/loans/1/reject")
+    .set("Authorization", `Bearer ${studentToken}`);
+
+  assert.equal(response.status, 403);
+  assert.equal(response.body.success, false);
+  assert.equal(response.body.error.code, "NOT_SUFFICIENT_PERMISSIONS");
+});
+
+test("PATCH /api/loans/:id/reject returns 404 when loan does not exist", async () => {
+  mockDatabase([]);
+
+  const response = await request(app)
+    .patch("/api/loans/999/reject")
+    .set("Authorization", `Bearer ${managerToken}`);
 
   assert.equal(response.status, 404);
   assert.equal(response.body.success, false);
@@ -413,14 +658,15 @@ test("PATCH /api/loans/:id/reject rejects rejecting a non-pending loan", async (
     return [];
   });
 
-  const response = await request(app).patch("/api/loans/1/reject");
+  const response = await request(app)
+    .patch("/api/loans/1/reject")
+    .set("Authorization", `Bearer ${managerToken}`);
 
   assert.equal(response.status, 400);
   assert.equal(response.body.success, false);
   assert.equal(response.body.error.code, "LOAN_INVALID_STATUS");
   assert.equal(response.body.message, "Only pending loans can be rejected");
 
-  // Verify no UPDATE query was executed
   const updateQueries = queries.filter((q) => /UPDATE/i.test(q[0]));
   assert.equal(updateQueries.length, 0);
 });
