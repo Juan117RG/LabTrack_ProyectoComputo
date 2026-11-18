@@ -1,4 +1,4 @@
-const actions = new Set(["login", "refresh-token", "logout"]);
+const actions = new Set(["login", "register", "refresh-token", "logout"]);
 
 export default defineEventHandler(async (event) => {
   setResponseHeader(event, "Cache-Control", "no-store");
@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
     headers.set("Cookie", `refreshToken=${encodeURIComponent(refreshToken)}`);
   if (authorization && action === "logout")
     headers.set("Authorization", authorization);
-  if (action === "login") {
+  if ((action === "login" || action === "register")) {
     const contentType = getRequestHeader(event, "content-type");
     if (
       contentType?.split(";")[0]?.trim().toLowerCase() !== "application/json"
@@ -38,7 +38,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const body =
-    action === "login" ? JSON.stringify(await readBody(event)) : undefined;
+    (action === "login" || action === "register") ? JSON.stringify(await readBody(event)) : undefined;
   let upstream: Response;
   try {
     upstream = await fetch(url, {
