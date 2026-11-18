@@ -62,3 +62,28 @@ otro dominio. En Docker, Nuxt usa `NUXT_AUTH_API_BASE` como dirección interna
 de Express. En Netlify puedes definir esa variable con la URL HTTPS de la API.
 En Render, configura `JWT_SECRET`, `NODE_ENV=production` y aplica la migración
 003 antes de desplegar los cambios de autenticación.
+
+## Cuentas iniciales de admin y manager
+
+El registro público crea estudiantes. Las cuentas privilegiadas se crean con
+un script manual, después de aplicar las migraciones 001 a 004. El script no
+cambia roles, contraseñas ni el estado de usuarios existentes. Si un correo ya
+pertenece a un usuario de otro rol o desactivado, cancela toda la operación.
+
+En una terminal PowerShell, desde la raíz, define la conexión de la base que
+quieres preparar y los cuatro valores privados. Las contraseñas deben ser
+distintas, de al menos 16 caracteres y como máximo 72 bytes. No uses los valores
+de ejemplo como contraseñas ni guardes secretos en archivos versionados.
+
+```powershell
+$env:DATABASE_URL = 'CONEXION_DE_LA_BASE'
+$env:SEED_ADMIN_EMAIL = 'admin@labtrack.local'
+$env:SEED_MANAGER_EMAIL = 'manager@labtrack.local'
+# Define SEED_ADMIN_PASSWORD y SEED_MANAGER_PASSWORD de forma privada.
+npm --prefix apps/api run db:seed
+```
+
+También puedes definirlos en `apps/api/.env` (ignorado por Git) y ejecutar
+`npm run db:seed` desde `apps/api`. No es necesario mantener las variables SEED
+en Render ni ejecutar el script al arrancar la API. Repetirlo conserva las
+cuentas y sus contraseñas. Usa estos correos y sus contraseñas en `/login`.
