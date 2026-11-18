@@ -21,7 +21,7 @@ export const authMiddleware = (
 
       const token = authHeader.split(" ")[1];
 
-      const decoded = await verifyToken(token);
+      const decoded = await verifyToken(token, "access");
 
       const user = await authRepository.findById(decoded.id);
 
@@ -33,9 +33,12 @@ export const authMiddleware = (
         return errorResponse(res, "Token revoked", "TOKEN_REVOKED", 401, []);
       }
 
-      const role = decoded.role as "student" | "manager" | "admin";
+      const role = user.role as keyof typeof roleHierarchy;
 
-      if (roleHierarchy[role] < roleHierarchy[requiredRole]) {
+      if (
+        !roleHierarchy[role] ||
+        roleHierarchy[role] < roleHierarchy[requiredRole]
+      ) {
         return errorResponse(
           res,
           "not_sufficient_permissions",

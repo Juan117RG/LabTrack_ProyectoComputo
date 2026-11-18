@@ -19,7 +19,7 @@ const authService = {
       data.name,
       data.email,
       hashedPassword,
-      data.role,
+      "student",
     );
     return newUser;
   },
@@ -28,7 +28,7 @@ const authService = {
     data: LoginAuthData,
   ): Promise<{ accessToken: string; refreshToken: string }> => {
     const user = await authRepository.findByEmail(data.email);
-    if (!user) {
+    if (!user || !user.active) {
       throw new Error("Invalid credentials");
     }
 
@@ -50,13 +50,13 @@ const authService = {
   ): Promise<{ accessToken: string; newRefreshToken: string }> => {
     let decoded;
     try {
-      decoded = await verifyToken(refreshToken);
+      decoded = await verifyToken(refreshToken, "refresh");
     } catch {
       throw new Error("Invalid refresh token");
     }
 
     const user = await authRepository.findById(decoded.id);
-    if (!user) {
+    if (!user || !user.active) {
       throw new Error("User not found");
     }
 
@@ -72,16 +72,22 @@ const authService = {
 
     return { accessToken, newRefreshToken };
   },
-  logout: async (refreshToken: string): Promise<void> => {
+  logout: async (
+    refreshToken: string,
+    authenticatedUserId: number,
+  ): Promise<void> => {
     let decoded;
     try {
-      decoded = await verifyToken(refreshToken);
+      decoded = await verifyToken(refreshToken, "refresh");
     } catch (error) {
       throw new Error("Invalid refresh token");
     }
     const userId = decoded.id;
+    if (userId !== authenticatedUserId) {
+      throw new Error("Invalid refresh token");
+    }
     const user = await authRepository.findById(userId);
-    if (!user) {
+    if (!user || !user.active) {
       throw new Error("User not found");
     }
     if (user.token_version !== decoded.token_version) {

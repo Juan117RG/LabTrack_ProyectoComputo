@@ -6,6 +6,9 @@ const loansService = {
   getLoans: async (filter: LoanFilter): Promise<Loan[]> => {
     return loansRepository.getLoans(filter);
   },
+  getLoansByUserId: async (userId: number): Promise<Loan[]> => {
+    return loansRepository.getLoansByUserId(userId);
+  },
   getLoanById: async (id: string): Promise<Loan | null> => {
     const loan = await loansRepository.getLoanById(id);
     return loan || null;

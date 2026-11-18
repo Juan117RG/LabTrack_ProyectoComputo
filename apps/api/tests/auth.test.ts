@@ -1,3 +1,4 @@
+import "./setup.js";
 import { strict as assert } from "node:assert";
 import { afterEach, test } from "node:test";
 import request from "supertest";
@@ -5,6 +6,8 @@ import app from "../src/app.ts";
 import pool from "../src/db.ts";
 import { generateAccessToken, generateRefreshToken } from "../src/utils/jwt.js";
 import { hashPassword } from "../src/utils/password.js";
+
+process.env.JWT_SECRET ??= "test-key-".repeat(8);
 
 const originalQueryDescriptor = Object.getOwnPropertyDescriptor(pool, "query");
 
@@ -162,7 +165,7 @@ test("POST /api/auth/login logs in user and sets HttpOnly refresh token cookie",
   assert.equal(response.status, 200);
   assert.equal(response.body.success, true);
   assert.ok(typeof response.body.data.accessToken === "string");
-  assert.ok(typeof response.body.data.refreshToken === "string");
+  assert.equal(response.body.data.refreshToken, undefined);
 
   // Verify HttpOnly cookie header was set
   const cookies = response.headers["set-cookie"];
@@ -254,7 +257,7 @@ test("POST /api/auth/refresh-token refreshes token via HttpOnly cookie", async (
   assert.match(cookieHeader, /HttpOnly/i);
 });
 
-test("POST /api/auth/refresh-token refreshes token via body fallback", async () => {
+test("POST /api/auth/refresh-token rejects a refresh token provided in the body", async () => {
   const user = {
     id: 2,
     name: "Manager User",
@@ -281,9 +284,7 @@ test("POST /api/auth/refresh-token refreshes token via body fallback", async () 
     .post("/api/auth/refresh-token")
     .send({ refreshToken });
 
-  assert.equal(response.status, 200);
-  assert.equal(response.body.success, true);
-  assert.ok(typeof response.body.data.accessToken === "string");
+  assert.equal(response.status, 400);
 });
 
 test("POST /api/auth/refresh-token rejects when no token is provided", async () => {
@@ -401,4 +402,32 @@ test("POST /api/auth/logout rejects when Bearer token is missing", async () => {
   assert.equal(response.status, 401);
   assert.equal(response.body.success, false);
   assert.equal(response.body.error.code, "TOKEN_REQUIRED");
+});
+
+test("POST /api/auth/register rejects the manager role for public registration", async () => {
+  const queries = mockDatabase([]);
+  const response = await request(app).post("/api/auth/register").send({
+    name: "Example Manager",
+    email: "manager@example.com",
+    password: "examplePassword123",
+    role: "manager",
+  });
+
+  assert.equal(response.status, 400);
+  assert.equal(queries.length, 0);
+});
+
+test("POST /api/auth/refresh-token rejects access tokens", async () => {
+  const token = await generateAccessToken({
+    id: 1,
+    role: "student",
+    token_version: 0,
+  });
+  const queries = mockDatabase([]);
+  const response = await request(app)
+    .post("/api/auth/refresh-token")
+    .set("Cookie", [`refreshToken=${token}`]);
+
+  assert.equal(response.status, 401);
+  assert.equal(queries.length, 0);
 });

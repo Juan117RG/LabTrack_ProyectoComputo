@@ -1,30 +1,65 @@
 import { SignJWT, jwtVerify } from "jose";
-import { JWTPayload } from "../types/jwt.types.js";
+import type { JWTPayload } from "../types/jwt.types.js";
 
-const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-const alg = "HS512"; // Overkill
+const algorithm = "HS512";
+type TokenUse = "access" | "refresh";
 
-export async function generateAccessToken(payload: JWTPayload) {
-  return await new SignJWT(payload)
-    .setProtectedHeader({ alg })
-    .setIssuedAt()
-    .setExpirationTime("15m") // Temporary token with short lifespan for security
-    .sign(secret);
+function signingKey() {
+  // Create a dummy secret key for testing purposes
+  const secretKey =
+    process.env.JWT_SECRET ||
+    (process.env.NODE_ENV !== "production"
+      ? "test_jwt_secret_must_be_at_least_64_bytes_long_for_hs512_signing_algorithm_testing_1234567890"
+      : "");
+  const secret = new TextEncoder().encode(secretKey);
+  if (secret.length < 64) {
+    throw new Error("JWT_SECRET must be at least 64 bytes");
+  }
+  return secret;
 }
 
-export async function generateRefreshToken(payload: JWTPayload) {
-  return await new SignJWT(payload)
-    .setProtectedHeader({ alg })
+function generateToken(
+  { id, role, token_version }: JWTPayload,
+  tokenUse: TokenUse,
+) {
+  return new SignJWT({
+    id: Number(id),
+    role,
+    token_version,
+    token_use: tokenUse,
+  })
+    .setProtectedHeader({ alg: algorithm })
     .setIssuedAt()
-    .setExpirationTime("1d") // Token to get more temporary tokens, with a longer lifespan
-    .sign(secret);
+    .setExpirationTime(tokenUse === "access" ? "15m" : "1d")
+    .sign(signingKey());
 }
 
-export async function verifyToken(token: string) {
-  try {
-    const { payload } = await jwtVerify(token, secret);
-    return payload as JWTPayload;
-  } catch (error) {
+export function generateAccessToken(payload: JWTPayload) {
+  return generateToken(payload, "access");
+}
+
+export function generateRefreshToken(payload: JWTPayload) {
+  return generateToken(payload, "refresh");
+}
+
+export async function verifyToken(token: string, tokenUse: TokenUse) {
+  const { payload } = await jwtVerify(token, signingKey(), {
+    algorithms: [algorithm],
+  });
+  const { id, role, token_version } = payload;
+
+  if (
+    payload.token_use !== tokenUse ||
+    typeof id !== "number" ||
+    !Number.isSafeInteger(id) ||
+    id < 1 ||
+    (role !== "student" && role !== "manager" && role !== "admin") ||
+    typeof token_version !== "number" ||
+    !Number.isSafeInteger(token_version) ||
+    token_version < 0
+  ) {
     throw new Error("Invalid token");
   }
+
+  return { id, role, token_version };
 }

@@ -11,6 +11,12 @@ const loansSchema = {
       .int()
       .positive("Equipment ID must be a positive integer"),
   }),
+  getLoansByUserId: z.object({
+    userId: z.coerce
+      .number()
+      .int()
+      .positive("User ID must be a positive integer"),
+  }),
 };
 
 export default loansSchema;
