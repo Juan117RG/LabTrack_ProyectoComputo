@@ -87,3 +87,23 @@ También puedes definirlos en `apps/api/.env` (ignorado por Git) y ejecutar
 `npm run db:seed` desde `apps/api`. No es necesario mantener las variables SEED
 en Render ni ejecutar el script al arrancar la API. Repetirlo conserva las
 cuentas y sus contraseñas. Usa estos correos y sus contraseñas en `/login`.
+
+## Pantallas de préstamos
+
+Desde el catálogo, abre **Préstamos**. Un estudiante puede elegir un equipo
+disponible, enviar su solicitud y consultar sus propios estados. El botón
+**Solicitar préstamo** del catálogo también lleva al formulario con el equipo
+seleccionado. La pantalla evita repetir una solicitud propia pendiente o aprobada.
+
+Con una cuenta `manager`, la misma página muestra todas las solicitudes y permite
+aprobar o rechazar las pendientes. Al aprobar, la API marca el equipo como no
+disponible. Usa **Actualizar** para consultar cambios de otras sesiones y el
+selector para filtrar por estado. El admin consulta todos los préstamos; la API
+actual reserva aprobar y rechazar al rol `manager`.
+
+Para la demostración, abre dos navegadores o perfiles: uno con el estudiante y
+otro con el manager. Solicita un equipo con el primero, apruébalo con el segundo
+y actualiza la lista del estudiante. Las devoluciones todavía no tienen una
+acción implementada. La API debe reforzar la aprobación simultánea de solicitudes
+del mismo equipo y la prevención de solicitudes duplicadas; la validación visual
+no reemplaza esas comprobaciones en el servidor.

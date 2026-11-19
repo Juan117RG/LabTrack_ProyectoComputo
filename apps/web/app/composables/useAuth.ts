@@ -13,7 +13,7 @@ export function useAuth() {
       throw error;
     }
   };
-  const request = async <T>(url: string, options: { method?: "GET" | "POST"; body?: Record<string, unknown> } = {}): Promise<T> => {
+  const request = async <T>(url: string, options: { method?: "GET" | "POST" | "PATCH"; body?: Record<string, unknown> } = {}): Promise<T> => {
     if (!await restore()) throw new Error("SESSION_REQUIRED");
     try {
       return await $fetch<T>(url, { ...options, headers: { Authorization: `Bearer ${accessToken.value}` } }) as T;
@@ -24,12 +24,13 @@ export function useAuth() {
       return await $fetch<T>(url, { ...options, headers: { Authorization: `Bearer ${accessToken.value}` } }) as T;
     }
   };
-  const canManage = computed(() => {
-    if (!accessToken.value || !import.meta.client) return false;
+  const sessionUser = computed<{ id: number; role: string } | null>(() => {
+    if (!accessToken.value || !import.meta.client) return null;
     try {
       const payload = JSON.parse(atob(accessToken.value.split(".")[1]!.replace(/-/g, "+").replace(/_/g, "/")));
-      return ["manager", "admin"].includes(payload.role);
-    } catch { return false; }
+      return Number.isSafeInteger(payload.id) && payload.id > 0 ? { id: payload.id, role: payload.role } : null;
+    } catch { return null; }
   });
-  return { accessToken, restore, request, canManage };
+  const canManage = computed(() => ["manager", "admin"].includes(sessionUser.value?.role ?? ""));
+  return { accessToken, restore, request, canManage, sessionUser };
 }
