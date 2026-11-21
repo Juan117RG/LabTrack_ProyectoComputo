@@ -12,6 +12,7 @@ const checkingSession = ref(true);
 
 useHead({ title: "Iniciar sesión | LabTrack" });
 
+// La cookie HttpOnly permite recuperar la sesión sin pedir otra vez la contraseña.
 async function refreshSession() {
   try {
     const response = await $fetch<TokenResponse>("/api/auth/refresh-token", {
@@ -24,12 +25,16 @@ async function refreshSession() {
 }
 
 onMounted(async () => {
-  if (!accessToken.value) await refreshSession();
+  if (!accessToken.value) {
+    await refreshSession();
+  }
   checkingSession.value = false;
 });
 
 async function signIn() {
-  if (busy.value) return;
+  if (busy.value) {
+    return;
+  }
   busy.value = true;
   errorMessage.value = "";
 
@@ -54,7 +59,9 @@ async function signIn() {
 }
 
 async function signOut() {
-  if (!accessToken.value || busy.value) return;
+  if (!accessToken.value || busy.value) {
+    return;
+  }
   busy.value = true;
   errorMessage.value = "";
 
@@ -65,7 +72,7 @@ async function signOut() {
     });
     accessToken.value = null;
   } catch {
-    // An expired access token can be renewed before attempting sign-out again.
+    // Si el acceso caducó, recupera la sesión para poder volver a intentar el cierre.
     accessToken.value = null;
     await refreshSession();
     if (accessToken.value) {
@@ -96,7 +103,12 @@ async function signOut() {
             Iniciar sesión
           </h1>
 
-          <p v-if="route.query.registro === 'completo'" role="status" class="mt-5 text-sm text-green-800">Cuenta creada. Ya puedes iniciar sesión.</p>
+          <p
+            v-if="route.query.registro === 'completo'"
+            role="status"
+            class="mt-5 text-sm text-green-800"
+            >Cuenta creada. Ya puedes iniciar sesión.</p
+          >
           <p
             v-if="checkingSession"
             class="mt-6 text-sm text-slate-600"
@@ -171,8 +183,16 @@ async function signOut() {
             {{ errorMessage }}
           </p>
 
-          <NuxtLink v-if="!accessToken" to="/registro" class="mt-6 block font-semibold text-blue-800">Crear cuenta</NuxtLink>
-          <NuxtLink v-if="accessToken" to="/catalogo" class="mt-6 inline-block rounded text-sm font-semibold text-blue-800 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-700"
+          <NuxtLink
+            v-if="!accessToken"
+            to="/registro"
+            class="mt-6 block font-semibold text-blue-800"
+            >Crear cuenta</NuxtLink
+          >
+          <NuxtLink
+            v-if="accessToken"
+            to="/catalogo"
+            class="mt-6 inline-block rounded text-sm font-semibold text-blue-800 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-700"
           >
             Ver catálogo
           </NuxtLink>

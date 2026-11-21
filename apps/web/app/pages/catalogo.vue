@@ -12,16 +12,22 @@ const {
 const url = `${apiBase.replace(/\/+$/, "")}/api/equipment`;
 const { accessToken, restore, request, canManage } = useAuth();
 const ready = ref(false);
-useHead({ title: 'Catálogo | LabTrack' });
+useHead({ title: "Catálogo | LabTrack" });
 onMounted(async () => {
+  // Comprueba la sesión antes de pedir el catálogo protegido.
   try {
-    if (!await restore()) { await navigateTo('/login'); return; }
+    if (!(await restore())) {
+      await navigateTo("/login");
+      return;
+    }
     ready.value = true;
     await refresh();
-  } catch { await navigateTo('/login'); }
+  } catch {
+    await navigateTo("/login");
+  }
 });
 const { data, status, error, refresh } = await useAsyncData<{ data: Equipo[] }>(
-  'equipment',
+  "equipment",
   () => request<{ data: Equipo[] }>(url),
   {
     server: false,
@@ -42,13 +48,16 @@ const estados: Record<string, string> = {
 
 async function guardarEquipo() {
   const name = nombre.value.trim();
-  if (!name || guardando.value || !data.value) return;
+  if (!name || guardando.value || !data.value) {
+    return;
+  }
 
   guardando.value = true;
   mensaje.value = "";
   errorGuardado.value = "";
 
   try {
+    // Agrega a la lista el equipo que confirma la API, con su identificador real.
     const { data: equipo } = await request<{ data: Equipo }>(url, {
       method: "POST",
       body: { name, description: descripcion.value.trim() || undefined },
@@ -69,7 +78,11 @@ async function guardarEquipo() {
   <main v-if="ready" class="mx-auto max-w-xl space-y-6 p-6">
     <header class="flex flex-wrap items-center justify-between gap-3">
       <h1 class="text-2xl font-bold">Catálogo de equipos</h1>
-      <NuxtLink to="/prestamos" class="font-semibold text-blue-800 hover:underline">Préstamos</NuxtLink>
+      <NuxtLink
+        to="/prestamos"
+        class="font-semibold text-blue-800 hover:underline"
+        >Préstamos</NuxtLink
+      >
       <NuxtLink
         to="/login"
         class="rounded font-semibold text-blue-800 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-700"
@@ -131,7 +144,12 @@ async function guardarEquipo() {
           Estado: {{ estados[equipo.status] ?? equipo.status }}
         </p>
         <p v-if="equipo.description">{{ equipo.description }}</p>
-        <NuxtLink v-if="!canManage && equipo.status === 'available'" :to="{ path: '/prestamos', query: { equipo: String(equipo.id) } }" class="mt-3 inline-block rounded bg-blue-800 px-3 py-2 text-white">Solicitar préstamo</NuxtLink>
+        <NuxtLink
+          v-if="!canManage && equipo.status === 'available'"
+          :to="{ path: '/prestamos', query: { equipo: String(equipo.id) } }"
+          class="mt-3 inline-block rounded bg-blue-800 px-3 py-2 text-white"
+          >Solicitar préstamo</NuxtLink
+        >
       </li>
     </ul>
     <p v-else>Todavía no hay equipos registrados.</p>
