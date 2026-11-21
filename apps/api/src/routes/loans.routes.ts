@@ -40,4 +40,12 @@ router.patch(
   loansController.rejectLoan,
 );
 
+router.patch(
+  "/:id/return",
+  authMiddleware("manager"),
+  validate(loansSchema.loanId, "params"),
+  validate(loansSchema.returnLoan, "body"),
+  loansController.returnLoan,
+);
+
 export default router;
