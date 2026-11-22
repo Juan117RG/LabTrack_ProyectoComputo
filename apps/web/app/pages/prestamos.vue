@@ -25,6 +25,8 @@ const loans = ref<Loan[]>([]);
 const equipment = ref<Equipment[]>([]);
 const selected = ref("");
 const filter = ref("");
+const section = ref<"loans" | "history">("loans");
+const search = ref("");
 const receiving = ref<number | null>(null);
 const returnCondition = ref("");
 const labels: Record<string, string> = {
@@ -34,8 +36,34 @@ const labels: Record<string, string> = {
   returned: "Devuelto",
 };
 const isManager = computed(() => sessionUser.value?.role === "manager");
+const activeLabels = {
+  pending: "Pendiente",
+  approved: "Aprobado",
+  rejected: "Rechazado",
+};
+// El historial utiliza los mismos registros y conserva el alcance de cada usuario.
+const history = computed(() =>
+  loans.value
+    .filter((loan) => loan.status === "returned")
+    .sort(
+      (a, b) =>
+        (Date.parse(b.returned_at || "") || 0) -
+          (Date.parse(a.returned_at || "") || 0) || b.id - a.id,
+    ),
+);
 const visibleLoans = computed(() =>
-  loans.value.filter((loan) => !filter.value || loan.status === filter.value),
+  section.value === "history"
+    ? history.value.filter((loan) => {
+        const text = `${equipmentName(loan.equipment_id)} ${loan.id} ${loan.user_id} ${loan.return_condition || ""}`;
+        return text
+          .toLocaleLowerCase("es-MX")
+          .includes(search.value.trim().toLocaleLowerCase("es-MX"));
+      })
+    : loans.value.filter(
+        (loan) =>
+          loan.status !== "returned" &&
+          (!filter.value || loan.status === filter.value),
+      ),
 );
 const available = computed(() =>
   equipment.value.filter((item) => item.status === "available"),
@@ -62,7 +90,9 @@ function date(value: string) {
     : parsed.toLocaleString("es-MX");
 }
 async function load() {
-  if (loading.value) return;
+  if (loading.value) {
+    return;
+  }
   loading.value = true;
   loadError.value = "";
   try {
@@ -90,8 +120,9 @@ onMounted(async () => {
     await load();
     const requested =
       typeof route.query.equipo === "string" ? route.query.equipo : "";
-    if (available.value.some((item) => String(item.id) === requested))
+    if (available.value.some((item) => String(item.id) === requested)) {
       selected.value = requested;
+    }
   } catch {
     loadError.value =
       "No se pudo comprobar la sesión. Recarga la página para reintentar.";
@@ -105,8 +136,9 @@ async function submit() {
     alreadyRequested.value ||
     !sessionUser.value ||
     !available.value.some((item) => String(item.id) === selected.value)
-  )
+  ) {
     return;
+  }
   busy.value = true;
   actionError.value = "";
   message.value = "";
@@ -135,8 +167,9 @@ async function decide(loan: Loan, action: "approve" | "reject") {
     loadError.value ||
     !isManager.value ||
     loan.status !== "pending"
-  )
+  ) {
     return;
+  }
   busy.value = true;
   actionError.value = "";
   message.value = "";
@@ -202,8 +235,38 @@ async function receive(loan: Loan) {
     <p v-if="!ready && !loadError" role="status">Comprobando sesión…</p>
     <p v-if="loadError" role="alert" class="text-red-700">{{ loadError }}</p>
     <template v-if="ready">
+      <nav aria-label="Secciones de préstamos" class="flex flex-wrap gap-3">
+        <button
+          type="button"
+          :aria-pressed="section === 'loans'"
+          :disabled="busy"
+          class="rounded border px-4 py-2 aria-pressed:bg-blue-800 aria-pressed:text-white disabled:opacity-50"
+          @click="section = 'loans'"
+        >
+          Préstamos
+        </button>
+        <button
+          type="button"
+          :aria-pressed="section === 'history'"
+          :disabled="busy"
+          class="rounded border px-4 py-2 aria-pressed:bg-blue-800 aria-pressed:text-white disabled:opacity-50"
+          @click="section = 'history'"
+        >
+          Historial de devoluciones ({{ history.length }})
+        </button>
+      </nav>
+      <section v-if="section === 'history'" class="space-y-2">
+        <h2 class="text-xl font-bold">Historial de devoluciones</h2>
+        <p class="text-sm text-slate-600">
+          {{
+            canManage
+              ? "Consulta los equipos recibidos, del más reciente al más antiguo."
+              : "Consulta los equipos que ya devolviste, del más reciente al más antiguo."
+          }}
+        </p>
+      </section>
       <form
-        v-if="!canManage"
+        v-if="!canManage && section === 'loans'"
         class="space-y-4 rounded-xl border border-slate-300 p-5"
         @submit.prevent="submit"
       >
@@ -257,18 +320,27 @@ async function receive(loan: Loan) {
         {{ actionError }}
       </p>
       <div class="flex flex-wrap items-end justify-between gap-4">
-        <label
+        <label v-if="section === 'loans'"
           >Filtrar por estado
           <select v-model="filter" class="ml-2 rounded border p-2">
             <option value="">Todos</option>
             <option
-              v-for="(label, value) in labels"
+              v-for="(label, value) in activeLabels"
               :key="value"
               :value="value"
             >
               {{ label }}
             </option>
           </select>
+        </label>
+        <label v-else class="block flex-1"
+          >Buscar en el historial
+          <input
+            v-model="search"
+            type="search"
+            placeholder="Equipo, número de solicitud u observación"
+            class="mt-2 block w-full rounded border p-2"
+          />
         </label>
         <button
           type="button"
@@ -373,7 +445,13 @@ async function receive(loan: Loan) {
         </li>
       </ul>
       <p v-else-if="!loading && !loadError">
-        No hay solicitudes {{ filter ? "con ese estado" : "todavía" }}.
+        {{
+          section === "history"
+            ? search.trim()
+              ? "No hay devoluciones que coincidan con la búsqueda."
+              : "Todavía no hay devoluciones registradas."
+            : `No hay solicitudes ${filter ? "con ese estado" : "todavía"}.`
+        }}
       </p>
     </template>
   </main>
