@@ -3,6 +3,9 @@ import type { CreateLoanData, Loan, LoanFilter } from "../types/loans.types.js";
 import equipmentService from "./equipment.service.js";
 
 const loansService = {
+  returnLoan: async (id: string, condition: string): Promise<Loan | null> => {
+    return loansRepository.returnLoan(id, condition);
+  },
   getLoans: async (filter: LoanFilter): Promise<Loan[]> => {
     return loansRepository.getLoans(filter);
   },
