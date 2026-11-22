@@ -4,6 +4,51 @@ import type { CreateLoanData, LoanFilter } from "../types/loans.types.js";
 import { errorResponse, successResponse } from "../utils/response.js";
 
 const loansController = {
+  returnLoan: async (req: Request, res: Response) => {
+    if (res.locals.user.role !== "manager") {
+      return errorResponse(
+        res,
+        "Only managers can receive equipment",
+        "LOAN_RETURN_FORBIDDEN",
+        403,
+        [],
+      );
+    }
+    try {
+      const { return_condition = "" } = res.locals.validatedData as {
+        return_condition?: string;
+      };
+      const loan = await loansService.returnLoan(
+        String(req.params.id),
+        return_condition,
+      );
+      if (!loan) {
+        return errorResponse(res, "Loan not found", "LOAN_NOT_FOUND", 404, []);
+      }
+      return successResponse(res, "Loan returned successfully", loan);
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === "Only approved loans can be returned"
+      ) {
+        return errorResponse(
+          res,
+          error.message,
+          "LOAN_INVALID_STATUS",
+          409,
+          [],
+        );
+      }
+      console.error("Error returning loan:", error);
+      return errorResponse(
+        res,
+        "Error returning loan",
+        "LOAN_RETURN_ERROR",
+        500,
+        [],
+      );
+    }
+  },
   getLoanById: async (req: Request, res: Response) => {
     try {
       const { id } = req.params as { id: string };

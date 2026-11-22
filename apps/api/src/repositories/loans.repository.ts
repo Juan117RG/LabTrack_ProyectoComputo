@@ -4,6 +4,46 @@ import type { CreateLoanData, Loan, LoanFilter } from "../types/loans.types.js";
 const loansRepositoryTableName = "loans";
 
 const loansRepository = {
+  returnLoan: async (id: string, condition: string): Promise<Loan | null> => {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      // El bloqueo impide registrar dos veces la misma devolución.
+      const { rows } = await client.query<Loan>(
+        "SELECT * FROM loans WHERE id = $1 FOR UPDATE",
+        [id],
+      );
+      const loan = rows[0];
+      if (!loan) {
+        await client.query("ROLLBACK");
+        return null;
+      }
+      if (loan.status !== "approved") {
+        throw new Error("Only approved loans can be returned");
+      }
+      const returned = await client.query<Loan>(
+        `UPDATE loans
+         SET status = 'returned', returned_at = NOW(), return_condition = $2
+         WHERE id = $1 RETURNING *`,
+        [id, condition || null],
+      );
+      // Ambos cambios se guardan juntos; un error deshace la operación completa.
+      const equipment = await client.query(
+        "UPDATE equipment SET status = 'available' WHERE id = $1 RETURNING id",
+        [loan.equipment_id],
+      );
+      if (!equipment.rows.length) {
+        throw new Error("Equipment not found");
+      }
+      await client.query("COMMIT");
+      return returned.rows[0];
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  },
   getLoans: async ({ status }: LoanFilter = {}): Promise<Loan[]> => {
     const query = status
       ? `SELECT id, user_id, equipment_id, status, requested_at, approved_at, returned_at, return_condition
