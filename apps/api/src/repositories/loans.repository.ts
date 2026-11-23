@@ -2,6 +2,7 @@ import pool from "../db.js";
 import type { CreateLoanData, Loan, LoanFilter } from "../types/loans.types.js";
 
 const loansRepositoryTableName = "loans";
+const equipmentRepositoryTableName = "equipment";
 
 const loansRepository = {
   returnLoan: async (id: string, condition: string): Promise<Loan | null> => {
@@ -29,7 +30,7 @@ const loansRepository = {
       );
       // Ambos cambios se guardan juntos; un error deshace la operación completa.
       const equipment = await client.query(
-        "UPDATE equipment SET status = 'available' WHERE id = $1 RETURNING id",
+        `UPDATE ${equipmentRepositoryTableName} SET status = 'available' WHERE id = $1 RETURNING id`,
         [loan.equipment_id],
       );
       if (!equipment.rows.length) {
@@ -80,28 +81,55 @@ const loansRepository = {
   },
 
   createLoan: async (loansData: CreateLoanData): Promise<Loan> => {
-    const query = `
-      INSERT INTO ${loansRepositoryTableName} (user_id, equipment_id, status, requested_at, approved_at, returned_at, return_condition)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING id, user_id, equipment_id, status, requested_at, approved_at, returned_at, return_condition
-    `;
-    const values = [
-      loansData.user_id,
-      loansData.equipment_id,
-      "pending", // Default status for new loans
-      new Date().toISOString(), // requested_at
-      null, // approved_at
-      null, // returned_at
-      null, // return_condition
-    ];
-    const { rows } = await pool.query<Loan>(query, values);
-    return rows[0];
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const equipmentResult = await client.query<{
+        id: number;
+        status: string;
+      }>(
+        `SELECT * FROM ${equipmentRepositoryTableName} WHERE id = $1 FOR UPDATE`,
+        [loansData.equipment_id],
+      );
+      const equipment = equipmentResult.rows[0];
+      if (!equipment) {
+        throw new Error("Equipment not found");
+      }
+      if (equipment.status !== "available") {
+        throw new Error("Equipment is not available for loan");
+      }
+      const query = `
+        INSERT INTO ${loansRepositoryTableName} (user_id, equipment_id, status, requested_at, approved_at, returned_at, return_condition)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING id, user_id, equipment_id, status, requested_at, approved_at, returned_at, return_condition
+      `;
+      const values = [
+        loansData.user_id,
+        loansData.equipment_id,
+        "pending", // Default status
+        new Date().toISOString(), // requested_at
+        null, // approved_at
+        null, // returned_at
+        null, // return_condition
+      ];
+      const { rows } = await client.query<Loan>(query, values);
+      await client.query("COMMIT");
+      return rows[0];
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   },
   updateLoanStatus: async (
     id: string,
     newStatus: "approved" | "rejected" | "returned",
   ): Promise<Loan | null> => {
-    const query = `
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const query = `
       UPDATE ${loansRepositoryTableName}
       SET status = $1,
           approved_at = CASE WHEN $1 = 'approved' THEN NOW() ELSE approved_at END,
@@ -109,9 +137,68 @@ const loansRepository = {
       WHERE id = $2
       RETURNING id, user_id, equipment_id, status, requested_at, approved_at, returned_at, return_condition
     `;
-    const values = [newStatus, id];
-    const { rows } = await pool.query<Loan>(query, values);
-    return rows.length > 0 ? rows[0] : null;
+      const values = [newStatus, id];
+      const { rows } = await client.query<Loan>(query, values);
+      await client.query("COMMIT");
+      return rows.length > 0 ? rows[0] : null;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  },
+  approveLoan: async (id: string): Promise<Loan | null> => {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const { rows } = await client.query<Loan>(
+        `SELECT * FROM ${loansRepositoryTableName} WHERE id = $1 FOR UPDATE`,
+        [id],
+      );
+      const loan = rows[0];
+      if (!loan) {
+        await client.query("ROLLBACK");
+        return null;
+      }
+      if (loan.status !== "pending") {
+        throw new Error("Only pending loans can be approved");
+      }
+      const eqResult = await client.query<{ id: number; status: string }>(
+        `SELECT * FROM ${equipmentRepositoryTableName} WHERE id = $1 FOR UPDATE`,
+        [loan.equipment_id],
+      );
+      const equipment = eqResult.rows[0];
+      if (!equipment) {
+        throw new Error("Equipment not found");
+      }
+      if (equipment.status !== "available") {
+        throw new Error("Equipment is not available for loan");
+      }
+
+      const query = `
+        UPDATE ${loansRepositoryTableName}
+        SET status = 'approved',
+            approved_at = NOW()
+        WHERE id = $1
+        RETURNING id, user_id, equipment_id, status, requested_at, approved_at, returned_at, return_condition`;
+      const { rows: updatedRows } = await client.query<Loan>(query, [id]);
+
+      const equipmentQuery = `
+        UPDATE ${equipmentRepositoryTableName}
+        SET status = 'unavailable'
+        WHERE id = $1
+        RETURNING id, name, description, status`;
+      await client.query(equipmentQuery, [loan.equipment_id]);
+
+      await client.query("COMMIT");
+      return updatedRows.length > 0 ? updatedRows[0] : null;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   },
 };
 

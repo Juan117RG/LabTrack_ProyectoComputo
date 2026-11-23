@@ -1,4 +1,5 @@
 import "./setup.js";
+import { assertErrorResponse } from "./setup.js";
 import { strict as assert } from "node:assert";
 import { afterEach, before, test } from "node:test";
 import request from "supertest";
@@ -144,9 +145,7 @@ test("GET /api/equipment rejects an unsupported status", async () => {
     .set("Authorization", `Bearer ${studentToken}`)
     .query({ status: "broken" });
 
-  assert.equal(response.status, 400);
-  assert.equal(response.body.success, false);
-  assert.equal(response.body.error.code, "VALIDATION_ERROR");
+  assertErrorResponse(response, { status: 400, code: "VALIDATION_ERROR" });
 });
 
 test("GET /api/equipment rejects unauthenticated requests", async () => {
@@ -154,9 +153,7 @@ test("GET /api/equipment rejects unauthenticated requests", async () => {
 
   const response = await request(app).get("/api/equipment");
 
-  assert.equal(response.status, 401);
-  assert.equal(response.body.success, false);
-  assert.equal(response.body.error.code, "TOKEN_REQUIRED");
+  assertErrorResponse(response, { status: 401, code: "TOKEN_REQUIRED" });
 });
 
 test("POST /api/equipment creates equipment with validated data for manager", async () => {
@@ -198,7 +195,8 @@ test("POST /api/equipment rejects student role with 403", async () => {
       description: "Equipo de laboratorio",
     });
 
-  assert.equal(response.status, 403);
-  assert.equal(response.body.success, false);
-  assert.equal(response.body.error.code, "NOT_SUFFICIENT_PERMISSIONS");
+  assertErrorResponse(response, {
+    status: 403,
+    code: "NOT_SUFFICIENT_PERMISSIONS",
+  });
 });

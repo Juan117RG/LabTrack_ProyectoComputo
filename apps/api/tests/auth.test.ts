@@ -1,4 +1,5 @@
 import "./setup.js";
+import { assertErrorResponse } from "./setup.js";
 import { strict as assert } from "node:assert";
 import { afterEach, test } from "node:test";
 import request from "supertest";
@@ -114,9 +115,7 @@ test("POST /api/auth/register rejects when email already exists", async () => {
     role: "student",
   });
 
-  assert.equal(response.status, 400);
-  assert.equal(response.body.success, false);
-  assert.equal(response.body.error.code, "EMAIL_ALREADY_EXISTS");
+  assertErrorResponse(response, { status: 400, code: "EMAIL_ALREADY_EXISTS" });
   assert.equal(queries.length, 1);
 });
 
@@ -130,9 +129,7 @@ test("POST /api/auth/register rejects invalid body data", async () => {
     role: "superadmin",
   });
 
-  assert.equal(response.status, 400);
-  assert.equal(response.body.success, false);
-  assert.equal(response.body.error.code, "VALIDATION_ERROR");
+  assertErrorResponse(response, { status: 400, code: "VALIDATION_ERROR" });
   assert.equal(queries.length, 0);
 });
 
@@ -184,9 +181,7 @@ test("POST /api/auth/login rejects when user is not found", async () => {
     password: "password123",
   });
 
-  assert.equal(response.status, 401);
-  assert.equal(response.body.success, false);
-  assert.equal(response.body.error.code, "INVALID_CREDENTIALS");
+  assertErrorResponse(response, { status: 401, code: "INVALID_CREDENTIALS" });
 });
 
 test("POST /api/auth/login rejects when password does not match", async () => {
@@ -214,9 +209,7 @@ test("POST /api/auth/login rejects when password does not match", async () => {
     password: "wrongPassword",
   });
 
-  assert.equal(response.status, 401);
-  assert.equal(response.body.success, false);
-  assert.equal(response.body.error.code, "INVALID_CREDENTIALS");
+  assertErrorResponse(response, { status: 401, code: "INVALID_CREDENTIALS" });
 });
 
 test("POST /api/auth/refresh-token refreshes token via HttpOnly cookie", async () => {
@@ -284,7 +277,7 @@ test("POST /api/auth/refresh-token rejects a refresh token provided in the body"
     .post("/api/auth/refresh-token")
     .send({ refreshToken });
 
-  assert.equal(response.status, 400);
+  assertErrorResponse(response, { status: 400 });
 });
 
 test("POST /api/auth/refresh-token rejects when no token is provided", async () => {
@@ -292,9 +285,7 @@ test("POST /api/auth/refresh-token rejects when no token is provided", async () 
 
   const response = await request(app).post("/api/auth/refresh-token");
 
-  assert.equal(response.status, 400);
-  assert.equal(response.body.success, false);
-  assert.equal(response.body.error.code, "TOKEN_REQUIRED");
+  assertErrorResponse(response, { status: 400, code: "TOKEN_REQUIRED" });
 });
 
 test("POST /api/auth/refresh-token rejects invalid/corrupted token", async () => {
@@ -304,9 +295,7 @@ test("POST /api/auth/refresh-token rejects invalid/corrupted token", async () =>
     .post("/api/auth/refresh-token")
     .set("Cookie", ["refreshToken=invalid-garbage-token"]);
 
-  assert.equal(response.status, 401);
-  assert.equal(response.body.success, false);
-  assert.equal(response.body.error.code, "INVALID_REFRESH_TOKEN");
+  assertErrorResponse(response, { status: 401, code: "INVALID_REFRESH_TOKEN" });
 });
 
 test("POST /api/auth/refresh-token rejects when token has been revoked (token_version mismatch)", async () => {
@@ -336,12 +325,7 @@ test("POST /api/auth/refresh-token rejects when token has been revoked (token_ve
     .post("/api/auth/refresh-token")
     .set("Cookie", [`refreshToken=${oldRefreshToken}`]);
 
-  assert.equal(response.status, 401);
-  assert.equal(response.body.success, false);
-  assert.ok(
-    response.body.error.code === "TOKEN_REVOKED" ||
-      response.body.error.code === "INVALID_REFRESH_TOKEN",
-  );
+  assertErrorResponse(response, { status: 401, code: "TOKEN_REVOKED" });
 });
 
 test("POST /api/auth/logout logs out user, revokes token and clears cookie", async () => {
@@ -399,9 +383,7 @@ test("POST /api/auth/logout rejects when Bearer token is missing", async () => {
 
   const response = await request(app).post("/api/auth/logout");
 
-  assert.equal(response.status, 401);
-  assert.equal(response.body.success, false);
-  assert.equal(response.body.error.code, "TOKEN_REQUIRED");
+  assertErrorResponse(response, { status: 401, code: "TOKEN_REQUIRED" });
 });
 
 test("POST /api/auth/register rejects the manager role for public registration", async () => {
@@ -413,7 +395,7 @@ test("POST /api/auth/register rejects the manager role for public registration",
     role: "manager",
   });
 
-  assert.equal(response.status, 400);
+  assertErrorResponse(response, { status: 400 });
   assert.equal(queries.length, 0);
 });
 
@@ -428,6 +410,6 @@ test("POST /api/auth/refresh-token rejects access tokens", async () => {
     .post("/api/auth/refresh-token")
     .set("Cookie", [`refreshToken=${token}`]);
 
-  assert.equal(response.status, 401);
+  assertErrorResponse(response, { status: 401 });
   assert.equal(queries.length, 0);
 });
