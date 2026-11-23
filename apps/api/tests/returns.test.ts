@@ -5,6 +5,7 @@ import request from "supertest";
 import app from "../src/app.ts";
 import pool from "../src/db.ts";
 import { generateAccessToken } from "../src/utils/jwt.js";
+import { assertErrorResponse } from "./setup.js";
 
 const queryDescriptor = Object.getOwnPropertyDescriptor(pool, "query");
 const connectDescriptor = Object.getOwnPropertyDescriptor(pool, "connect");
@@ -101,8 +102,7 @@ for (const status of ["pending", "rejected", "returned"]) {
       .patch(endpoint)
       .set("Authorization", `Bearer ${tokens.manager}`)
       .send({});
-    assert.equal(res.status, 409);
-    assert.equal(res.body.error.code, "LOAN_INVALID_STATUS");
+    assertErrorResponse(res, { status: 409, code: "LOAN_INVALID_STATUS" });
     assert.ok(!db.statements.some((sql) => sql.startsWith("UPDATE")));
     assert.equal(db.statements.at(-1), "ROLLBACK");
     assert.equal(db.released(), true);
@@ -114,7 +114,7 @@ test("return rolls back when updating availability fails", async () => {
     .patch(endpoint)
     .set("Authorization", `Bearer ${tokens.manager}`)
     .send({});
-  assert.equal(res.status, 500);
+  assertErrorResponse(res, { status: 500 });
   assert.equal(db.statements.at(-1), "ROLLBACK");
   assert.ok(!db.statements.includes("COMMIT"));
   assert.equal(db.released(), true);
@@ -125,7 +125,7 @@ test("return missing loan returns 404", async () => {
     .patch(endpoint)
     .set("Authorization", `Bearer ${tokens.manager}`)
     .send({});
-  assert.equal(res.status, 404);
+  assertErrorResponse(res, { status: 404 });
   assert.equal(db.statements.at(-1), "ROLLBACK");
 });
 for (const role of ["student", "admin"]) {
@@ -135,14 +135,14 @@ for (const role of ["student", "admin"]) {
       .patch(endpoint)
       .set("Authorization", `Bearer ${tokens[role]}`)
       .send({});
-    assert.equal(res.status, 403);
+    assertErrorResponse(res, { status: 403 });
     assert.equal(db.statements.length, 0);
   });
 }
 test("return requires authentication", async () => {
   const db = database();
   const res = await request(app).patch(endpoint).send({});
-  assert.equal(res.status, 401);
+  assertErrorResponse(res, { status: 401 });
   assert.equal(db.statements.length, 0);
 });
 test("return validates identifier and observation before starting a transaction", async () => {
@@ -156,7 +156,7 @@ test("return validates identifier and observation before starting a transaction"
       .patch(url)
       .set("Authorization", `Bearer ${tokens.manager}`)
       .send(body);
-    assert.equal(res.status, 400);
+    assertErrorResponse(res, { status: 400 });
   }
   assert.equal(db.statements.length, 0);
 });

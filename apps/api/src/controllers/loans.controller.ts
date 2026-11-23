@@ -204,6 +204,27 @@ const loansController = {
           [],
         );
       }
+      if (
+        error instanceof Error &&
+        error.message === "Equipment is not available for loan"
+      ) {
+        return errorResponse(
+          res,
+          error.message,
+          "EQUIPMENT_NOT_AVAILABLE",
+          409,
+          [],
+        );
+      }
+      if (error instanceof Error && error.message === "Equipment not found") {
+        return errorResponse(
+          res,
+          error.message,
+          "EQUIPMENT_NOT_FOUND",
+          404,
+          [],
+        );
+      }
       console.error("Error approving loan:", error);
       return errorResponse(
         res,
