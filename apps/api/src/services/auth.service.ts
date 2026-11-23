@@ -62,7 +62,7 @@ const authService = {
 
     // Verify token version has not been revoked by a logout or password reset
     if (user.token_version !== decoded.token_version) {
-      throw new Error("Invalid refresh token");
+      throw new Error("Token has been revoked");
     }
     if (user.active !== true) {
       throw new Error("User is not active");

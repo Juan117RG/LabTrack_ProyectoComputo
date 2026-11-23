@@ -29,28 +29,11 @@ const loansService = {
     return loansRepository.createLoan(loansData);
   },
   approveLoan: async (id: string): Promise<Loan | null> => {
-    const loan = await loansRepository.getLoanById(id);
-    if (!loan) {
-      return null;
-    }
-
-    if (loan.status !== "pending") {
-      throw new Error("Only pending loans can be approved");
-    }
-    const madeLoan = await loansRepository.updateLoanStatus(id, "approved");
-    await equipmentService.setEquipmentStatus(loan.equipment_id, "unavailable");
-    return madeLoan;
+    // La transacción atómica en el repositorio valida el préstamo, bloquea el equipo y actualiza ambos.
+    return loansRepository.approveLoan(id);
   },
   rejectLoan: async (id: string): Promise<Loan | null> => {
-    const loan = await loansRepository.getLoanById(id);
-    if (!loan) {
-      return null;
-    }
-
-    if (loan.status !== "pending") {
-      throw new Error("Only pending loans can be rejected");
-    }
-    return loansRepository.updateLoanStatus(id, "rejected");
+    return loansRepository.rejectLoan(id);
   },
 };
 
