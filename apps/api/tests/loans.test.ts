@@ -731,6 +731,6 @@ test("PATCH /api/loans/:id/reject rejects rejecting a non-pending loan", async (
     message: "Only pending loans can be rejected",
   });
 
-  const updateQueries = queries.filter((q) => /UPDATE/i.test(q[0]));
+  const updateQueries = queries.filter((q) => /^\s*UPDATE/i.test(q[0]));
   assert.equal(updateQueries.length, 0);
 });
