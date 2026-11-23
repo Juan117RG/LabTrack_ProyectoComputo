@@ -2,35 +2,83 @@ type SessionResponse = { data: { accessToken: string } };
 
 export function useAuth() {
   const accessToken = useState<string | null>("access-token", () => null);
+  // Recupera el acceso usando la cookie HttpOnly, sin guardar tokens en localStorage.
   const restore = async () => {
-    if (accessToken.value) return true;
+    if (accessToken.value) {
+      return true;
+    }
     try {
-      const response = await $fetch<SessionResponse>("/api/auth/refresh-token", { method: "POST" });
+      const response = await $fetch<SessionResponse>(
+        "/api/auth/refresh-token",
+        { method: "POST" },
+      );
       accessToken.value = response.data.accessToken;
       return true;
     } catch (error) {
-      if ([400, 401, 403, 404].includes((error as { statusCode?: number }).statusCode ?? 0)) return false;
+      if (
+        [400, 401, 403, 404].includes(
+          (error as { statusCode?: number }).statusCode ?? 0,
+        )
+      ) {
+        return false;
+      }
       throw error;
     }
   };
-  const request = async <T>(url: string, options: { method?: "GET" | "POST" | "PATCH"; body?: Record<string, unknown> } = {}): Promise<T> => {
-    if (!await restore()) throw new Error("SESSION_REQUIRED");
+  const request = async <T>(
+    url: string,
+    options: {
+      method?: "GET" | "POST" | "PATCH";
+      body?: Record<string, unknown>;
+    } = {},
+  ): Promise<T> => {
+    if (!(await restore())) {
+      throw new Error("SESSION_REQUIRED");
+    }
     try {
-      return await $fetch<T>(url, { ...options, headers: { Authorization: `Bearer ${accessToken.value}` } }) as T;
+      return (await $fetch<T>(url, {
+        ...options,
+        headers: { Authorization: `Bearer ${accessToken.value}` },
+      })) as T;
     } catch (error) {
-      if ((error as { statusCode?: number }).statusCode !== 401) throw error;
+      if ((error as { statusCode?: number }).statusCode !== 401) {
+        throw error;
+      }
+      // Si el acceso caducó, renueva la sesión y reintenta la petición una sola vez.
       accessToken.value = null;
-      if (!await restore()) { await navigateTo("/login"); throw new Error("SESSION_REQUIRED"); }
-      return await $fetch<T>(url, { ...options, headers: { Authorization: `Bearer ${accessToken.value}` } }) as T;
+      if (!(await restore())) {
+        await navigateTo("/login");
+        throw new Error("SESSION_REQUIRED");
+      }
+      return (await $fetch<T>(url, {
+        ...options,
+        headers: { Authorization: `Bearer ${accessToken.value}` },
+      })) as T;
     }
   };
+  // Estos datos solo adaptan la pantalla; la API comprueba los permisos reales.
   const sessionUser = computed<{ id: number; role: string } | null>(() => {
-    if (!accessToken.value || !import.meta.client) return null;
+    if (!accessToken.value || !import.meta.client) {
+      return null;
+    }
     try {
-      const payload = JSON.parse(atob(accessToken.value.split(".")[1]!.replace(/-/g, "+").replace(/_/g, "/")));
-      return Number.isSafeInteger(payload.id) && payload.id > 0 ? { id: payload.id, role: payload.role } : null;
-    } catch { return null; }
+      const payload = JSON.parse(
+        atob(
+          accessToken.value
+            .split(".")[1]!
+            .replace(/-/g, "+")
+            .replace(/_/g, "/"),
+        ),
+      );
+      return Number.isSafeInteger(payload.id) && payload.id > 0
+        ? { id: payload.id, role: payload.role }
+        : null;
+    } catch {
+      return null;
+    }
   });
-  const canManage = computed(() => ["manager", "admin"].includes(sessionUser.value?.role ?? ""));
+  const canManage = computed(() =>
+    ["manager", "admin"].includes(sessionUser.value?.role ?? ""),
+  );
   return { accessToken, restore, request, canManage, sessionUser };
 }
