@@ -8,7 +8,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: "Not found" });
   }
 
-  // The browser calls this endpoint on the same origin as the login page.
+  // Mantiene la autenticación en el dominio de la página y rechaza otros orígenes.
   const fetchSite = getRequestHeader(event, "sec-fetch-site");
   if (fetchSite && fetchSite !== "same-origin" && fetchSite !== "none") {
     throw createError({ statusCode: 403, statusMessage: "Invalid origin" });
@@ -20,11 +20,13 @@ export default defineEventHandler(async (event) => {
   const headers = new Headers({ Accept: "application/json" });
   const refreshToken = getCookie(event, "refreshToken");
   const authorization = getRequestHeader(event, "authorization");
-  if (refreshToken)
+  if (refreshToken) {
     headers.set("Cookie", `refreshToken=${encodeURIComponent(refreshToken)}`);
-  if (authorization && action === "logout")
+  }
+  if (authorization && action === "logout") {
     headers.set("Authorization", authorization);
-  if ((action === "login" || action === "register")) {
+  }
+  if (action === "login" || action === "register") {
     const contentType = getRequestHeader(event, "content-type");
     if (
       contentType?.split(";")[0]?.trim().toLowerCase() !== "application/json"
@@ -38,7 +40,9 @@ export default defineEventHandler(async (event) => {
   }
 
   const body =
-    (action === "login" || action === "register") ? JSON.stringify(await readBody(event)) : undefined;
+    action === "login" || action === "register"
+      ? JSON.stringify(await readBody(event))
+      : undefined;
   let upstream: Response;
   try {
     upstream = await fetch(url, {
@@ -55,6 +59,7 @@ export default defineEventHandler(async (event) => {
   }
 
   setResponseStatus(event, upstream.status);
+  // Conserva las cookies HttpOnly enviadas por Express al pasar por el proxy de Nuxt.
   for (const cookie of upstream.headers.getSetCookie()) {
     appendResponseHeader(event, "Set-Cookie", cookie);
   }
