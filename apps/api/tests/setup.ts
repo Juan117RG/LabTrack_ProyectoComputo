@@ -25,12 +25,7 @@ if (pool) {
   };
 }
 
-/**
- * Asserts that an error was returned when an error was expected.
- * Does not require exact error codes, messages, or exact 4xx status codes:
- * as long as the response represents an error (HTTP >= 400 and success !== true),
- * the test passes. Differences are logged to the console for visibility.
- */
+// Un error interno no debe pasar por una respuesta de validación o de permisos.
 export function assertErrorResponse(
   response: { status: number; body?: any },
   expected: {
@@ -43,29 +38,19 @@ export function assertErrorResponse(
     response.status >= 400,
     `Expected an error response (HTTP >= 400), but received HTTP ${response.status}`,
   );
-  assert.notEqual(
-    response.body?.success,
-    true,
-    `Expected response.body.success to not be true for an error response`,
-  );
+  assert.equal(response.body?.success, false);
 
-  if (expected.status !== undefined && response.status !== expected.status) {
-    console.warn(
-      `[Test Note] HTTP status difference: expected ${expected.status}, received ${response.status} (${response.body?.error?.code ?? response.body?.message ?? ""})`,
-    );
+  if (expected.status !== undefined) {
+    assert.equal(response.status, expected.status);
   }
 
   const actualCode = response.body?.error?.code;
-  if (expected.code !== undefined && actualCode !== expected.code) {
-    console.warn(
-      `[Test Note] Error code difference: expected '${expected.code}', received '${actualCode}'`,
-    );
+  if (expected.code !== undefined) {
+    assert.equal(actualCode, expected.code);
   }
 
   const actualMessage = response.body?.message ?? response.body?.error?.message;
-  if (expected.message !== undefined && actualMessage !== expected.message) {
-    console.warn(
-      `[Test Note] Error message difference: expected '${expected.message}', received '${actualMessage}'`,
-    );
+  if (expected.message !== undefined) {
+    assert.equal(actualMessage, expected.message);
   }
 }

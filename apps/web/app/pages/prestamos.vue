@@ -96,6 +96,7 @@ async function load() {
   loading.value = true;
   loadError.value = "";
   try {
+    // El estudiante consulta sus solicitudes; los encargados consultan la lista general.
     const [items, records] = await Promise.all([
       request<{ data: Equipment[] }>(`${base}/api/equipment`),
       request<{ data: Loan[] }>(
@@ -143,6 +144,7 @@ async function submit() {
   actionError.value = "";
   message.value = "";
   try {
+    // La API verifica que el solicitante coincida con el usuario autenticado.
     await request(`${base}/api/loans`, {
       method: "POST",
       body: {
@@ -174,6 +176,7 @@ async function decide(loan: Loan, action: "approve" | "reject") {
   actionError.value = "";
   message.value = "";
   try {
+    // Después de decidir, vuelve a consultar para mostrar el estado guardado en PostgreSQL.
     await request(`${base}/api/loans/${loan.id}/${action}`, {
       method: "PATCH",
     });

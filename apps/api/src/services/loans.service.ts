@@ -33,15 +33,7 @@ const loansService = {
     return loansRepository.approveLoan(id);
   },
   rejectLoan: async (id: string): Promise<Loan | null> => {
-    const loan = await loansRepository.getLoanById(id);
-    if (!loan) {
-      return null;
-    }
-
-    if (loan.status !== "pending") {
-      throw new Error("Only pending loans can be rejected");
-    }
-    return loansRepository.updateLoanStatus(id, "rejected");
+    return loansRepository.rejectLoan(id);
   },
 };
 

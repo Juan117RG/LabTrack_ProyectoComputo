@@ -5,6 +5,42 @@ const loansRepositoryTableName = "loans";
 const equipmentRepositoryTableName = "equipment";
 
 const loansRepository = {
+  rejectLoan: async (id: string): Promise<Loan | null> => {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      // Usa el mismo bloqueo que la aprobación para decidir sobre el estado actual.
+      const { rows } = await client.query<Loan>(
+        "SELECT * FROM loans WHERE id = $1 FOR UPDATE",
+        [id],
+      );
+      const loan = rows[0];
+      if (!loan) {
+        await client.query("ROLLBACK");
+        return null;
+      }
+      if (loan.status !== "pending") {
+        throw new Error("Only pending loans can be rejected");
+      }
+      const rejected = await client.query<Loan>(
+        `UPDATE loans SET status = 'rejected'
+         WHERE id = $1 AND status = 'pending'
+         RETURNING id, user_id, equipment_id, status, requested_at,
+                   approved_at, returned_at, return_condition`,
+        [id],
+      );
+      if (!rejected.rows.length) {
+        throw new Error("Only pending loans can be rejected");
+      }
+      await client.query("COMMIT");
+      return rejected.rows[0];
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  },
   returnLoan: async (id: string, condition: string): Promise<Loan | null> => {
     const client = await pool.connect();
     try {
@@ -115,32 +151,6 @@ const loansRepository = {
       const { rows } = await client.query<Loan>(query, values);
       await client.query("COMMIT");
       return rows[0];
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
-    }
-  },
-  updateLoanStatus: async (
-    id: string,
-    newStatus: "approved" | "rejected" | "returned",
-  ): Promise<Loan | null> => {
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-      const query = `
-      UPDATE ${loansRepositoryTableName}
-      SET status = $1,
-          approved_at = CASE WHEN $1 = 'approved' THEN NOW() ELSE approved_at END,
-          returned_at = CASE WHEN $1 = 'returned' THEN NOW() ELSE returned_at END
-      WHERE id = $2
-      RETURNING id, user_id, equipment_id, status, requested_at, approved_at, returned_at, return_condition
-    `;
-      const values = [newStatus, id];
-      const { rows } = await client.query<Loan>(query, values);
-      await client.query("COMMIT");
-      return rows.length > 0 ? rows[0] : null;
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;

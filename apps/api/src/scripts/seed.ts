@@ -32,11 +32,13 @@ async function seed() {
   ) {
     throw new Error("Usa correos y contraseñas diferentes para cada cuenta.");
   }
-  if (!process.env.DATABASE_URL)
+  if (!process.env.DATABASE_URL) {
     throw new Error("Define DATABASE_URL antes de ejecutar el script.");
+  }
 
   const client = await pool.connect();
   try {
+    // Crea ambas cuentas en una transacción y evita dos ejecuciones simultáneas.
     await client.query("BEGIN");
     await client.query("SELECT pg_advisory_xact_lock(73419201)");
     for (const account of accounts) {
